@@ -172,10 +172,9 @@ class OPExProvider : MainAPI() {
             // Set status to metadata
             this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
             // Add rating to metadata
-            tmdbRating.toDoubleOrNull()?.let { score ->
-                if (score > 0) {
-                    this.score = Score.from10(score)
-                }
+            val scoreValue = tmdbRating.toDoubleOrNull()
+            if (scoreValue != null && scoreValue > 0) {
+                this.score = Score.from10(scoreValue)
             }
         }
     }

@@ -161,10 +161,9 @@ class KKPExProvider : MainAPI() {
                 // Set status to metadata
                 this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
                 // Add rating to metadata
-                movie.tmdb?.vote_average?.let { score ->
-                    if (score > 0) {
-                        this.score = Score.from10(score)
-                    }
+                val scoreValue = movie.tmdb?.vote_average
+                if (scoreValue != null && scoreValue > 0) {
+                    this.score = Score.from10(scoreValue)
                 }
             }
         } else {
@@ -176,10 +175,9 @@ class KKPExProvider : MainAPI() {
                 // Set status to metadata
                 this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
                 // Add rating to metadata
-                movie.tmdb?.vote_average?.let { score ->
-                    if (score > 0) {
-                        this.score = Score.from10(score)
-                    }
+                val scoreValue = movie.tmdb?.vote_average
+                if (scoreValue != null && scoreValue > 0) {
+                    this.score = Score.from10(scoreValue)
                 }
             }
         }
