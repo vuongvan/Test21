@@ -22,6 +22,10 @@ class SettingsFragment(
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val ctx = requireContext()
 
+        val scrollView = android.widget.ScrollView(ctx).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+
         val layout = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
@@ -32,6 +36,7 @@ class SettingsFragment(
         // Domain settings
         val domainLabel = TextView(ctx).apply {
             text = "Domain:"
+            textSize = 14f
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
@@ -45,6 +50,7 @@ class SettingsFragment(
         // Username settings
         val usernameLabel = TextView(ctx).apply {
             text = "Tên đăng nhập:"
+            textSize = 14f
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             setPadding(0, 16, 0, 8)
         }
@@ -58,6 +64,7 @@ class SettingsFragment(
         // Password settings
         val passwordLabel = TextView(ctx).apply {
             text = "Mật khẩu:"
+            textSize = 14f
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             setPadding(0, 16, 0, 8)
         }
@@ -67,6 +74,49 @@ class SettingsFragment(
             setText(sharedPref.getString(KKPExProvider.PREF_PASSWORD, ""))
             inputType = InputType.TYPE_TEXT_VARIATION_PASSWORD
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        // Category settings
+        val categoryTitleLabel = TextView(ctx).apply {
+            text = "⚙️ Cài Đặt Danh Sách Phim"
+            textSize = 16f
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setPadding(0, 24, 0, 12)
+        }
+
+        val categoryDescLabel = TextView(ctx).apply {
+            text = "Nhập đường dẫn API sau domain, ví dụ: quoc-gia/trung-quoc, v1/api/phim-bo, v.v. Để trống để bỏ qua danh sách này."
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val categoryEdits = mutableListOf<EditText>()
+        for (i in 1..6) {
+            val categoryLabel = TextView(ctx).apply {
+                text = "Danh Sách $i:"
+                textSize = 14f
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(0, 12, 0, 8)
+            }
+
+            val preKey = when (i) {
+                1 -> KKPExProvider.PREF_CATEGORY_1
+                2 -> KKPExProvider.PREF_CATEGORY_2
+                3 -> KKPExProvider.PREF_CATEGORY_3
+                4 -> KKPExProvider.PREF_CATEGORY_4
+                5 -> KKPExProvider.PREF_CATEGORY_5
+                else -> KKPExProvider.PREF_CATEGORY_6
+            }
+
+            val categoryEdit = EditText(ctx).apply {
+                hint = "Ví dụ: quoc-gia/han-quoc hoặc v1/api/phim-le"
+                setText(sharedPref.getString(preKey, ""))
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+
+            layout.addView(categoryLabel)
+            layout.addView(categoryEdit)
+            categoryEdits.add(categoryEdit)
         }
 
         // Save button
@@ -96,6 +146,13 @@ class SettingsFragment(
                     putString(KKPExProvider.PREF_USERNAME, username)
                     putString(KKPExProvider.PREF_PASSWORD, password)
                     putBoolean(KKPExProvider.PREF_IS_LOGGED_IN, true)
+                    // Save custom categories
+                    putString(KKPExProvider.PREF_CATEGORY_1, categoryEdits.getOrNull(0)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_2, categoryEdits.getOrNull(1)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_3, categoryEdits.getOrNull(2)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_4, categoryEdits.getOrNull(3)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_5, categoryEdits.getOrNull(4)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_6, categoryEdits.getOrNull(5)?.text.toString().trim())
                     apply()
                 }
                 

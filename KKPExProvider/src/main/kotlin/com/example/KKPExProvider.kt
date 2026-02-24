@@ -14,6 +14,12 @@ class KKPExProvider : MainAPI() {
         const val PREF_USERNAME = "username"
         const val PREF_PASSWORD = "password"
         const val PREF_IS_LOGGED_IN = "is_logged_in"
+        const val PREF_CATEGORY_1 = "category_1"
+        const val PREF_CATEGORY_2 = "category_2"
+        const val PREF_CATEGORY_3 = "category_3"
+        const val PREF_CATEGORY_4 = "category_4"
+        const val PREF_CATEGORY_5 = "category_5"
+        const val PREF_CATEGORY_6 = "category_6"
     }
     override var mainUrl = "https://phimapi.com"
     override var name = "KK Phim"
@@ -39,13 +45,40 @@ class KKPExProvider : MainAPI() {
         } catch (e: Exception) { emptyList() }
     }
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = listOf(
-            Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"),
-            Pair("$mainUrl/v1/api/quoc-gia/trung-quoc?page=$page", "Phim Trung Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/han-quoc?page=$page", "Phim Hàn Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/nhat-ban?page=$page", "Phim Nhật Bản")
+    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val categories = mutableListOf<Pair<String, String>>()
+        
+        // Default category
+        categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"))
+        
+        // Custom categories
+        val categoryMap = mapOf(
+            Pair(PREF_CATEGORY_1, "Danh Sách 1"),
+            Pair(PREF_CATEGORY_2, "Danh Sách 2"),
+            Pair(PREF_CATEGORY_3, "Danh Sách 3"),
+            Pair(PREF_CATEGORY_4, "Danh Sách 4"),
+            Pair(PREF_CATEGORY_5, "Danh Sách 5"),
+            Pair(PREF_CATEGORY_6, "Danh Sách 6")
         )
+        
+        for ((prefKey, displayName) in categoryMap) {
+            val categoryPath = prefs.getString(prefKey, "").orEmpty()
+            if (categoryPath.isNotEmpty()) {
+                val categoryUrl = if (categoryPath.startsWith("http")) {
+                    "$categoryPath?page=$page"
+                } else {
+                    "${mainUrl}/v1/api/$categoryPath?page=$page"
+                }
+                categories.add(Pair(categoryUrl, displayName))
+            }
+        }
+        
+        return categories
+    }
+    
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
+        val items = getCustomCategories(page)
         val homePageLists = items.map { (url, title) -> HomePageList(title, getListFromUrl(url)) }
         return newHomePageResponse(homePageLists, true)
     }
