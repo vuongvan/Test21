@@ -132,7 +132,8 @@ class OPExProvider : MainAPI() {
         }
 
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
-        val tmdbRating = rawRating?.toDoubleOrNull()?.let { "%.1f".format(it) } ?: "0.0"
+        val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
+        val tmdbRating = "%.1f".format(ratingValue)
 
         val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
@@ -173,9 +174,8 @@ class OPExProvider : MainAPI() {
             // Set status to metadata
             this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
             // Add rating to metadata
-            val scoreValue = tmdbRating.toDoubleOrNull()
-            if (scoreValue != null) {
-                this.score = Score.from10(scoreValue)
+            if (ratingValue > 0) {
+                this.score = Score.from10(ratingValue)
             }
         }
     }
