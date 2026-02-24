@@ -182,11 +182,18 @@ class SettingsFragment(
                     remove(KKPExProvider.PREF_USERNAME)
                     remove(KKPExProvider.PREF_PASSWORD)
                     remove(KKPExProvider.PREF_IS_LOGGED_IN)
+                    remove(KKPExProvider.PREF_CATEGORY_1)
+                    remove(KKPExProvider.PREF_CATEGORY_2)
+                    remove(KKPExProvider.PREF_CATEGORY_3)
+                    remove(KKPExProvider.PREF_CATEGORY_4)
+                    remove(KKPExProvider.PREF_CATEGORY_5)
+                    remove(KKPExProvider.PREF_CATEGORY_6)
                     apply()
                 }
                 domainEdit.setText(KKPExProvider().mainUrl)
                 usernameEdit.setText("")
                 passwordEdit.setText("")
+                categoryEdits.forEach { it.setText("") }
                 showToast("Đã đặt lại thành mặc định")
                 AlertDialog.Builder(ctx)
                     .setTitle("Đặt Lại & Khởi Động Lại")
@@ -216,11 +223,14 @@ class SettingsFragment(
         layout.addView(usernameEdit)
         layout.addView(passwordLabel)
         layout.addView(passwordEdit)
+        layout.addView(categoryTitleLabel)
+        layout.addView(categoryDescLabel)
         layout.addView(saveBtn)
         layout.addView(resetBtn)
         layout.addView(closeBtn)
 
-        return layout
+        scrollView.addView(layout)
+        return scrollView
     }
 
     private fun restartApp() {
