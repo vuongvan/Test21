@@ -55,20 +55,16 @@ class KKPExProvider : MainAPI() {
         // Default category
         categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"))
         
-        // Custom categories with defaults
-        val categoryMap = mapOf(
-            Triple(PREF_CATEGORY_1, PREF_CATEGORY_1_NAME, "quoc-gia/trung-quoc", "Phim Trung Quốc"),
-            Triple(PREF_CATEGORY_2, PREF_CATEGORY_2_NAME, "quoc-gia/han-quoc", "Phim Hàn Quốc"),
-            Triple(PREF_CATEGORY_3, PREF_CATEGORY_3_NAME, "danh-sach/hoat-hinh", "Phim Hoạt Hình"),
-            Triple(PREF_CATEGORY_4, PREF_CATEGORY_4_NAME, "", "Danh Sách 4"),
-            Triple(PREF_CATEGORY_5, PREF_CATEGORY_5_NAME, "", "Danh Sách 5"),
-            Triple(PREF_CATEGORY_6, PREF_CATEGORY_6_NAME, "", "Danh Sách 6")
-        )
+        // Parallel lists for category configuration
+        val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
+        val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
+        val defaultPaths = listOf("quoc-gia/trung-quoc", "quoc-gia/han-quoc", "danh-sach/hoat-hinh", "", "", "")
+        val defaultNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         
-        for ((pathKey, nameKey, defaultPath, defaultName) in categoryMap) {
-            val categoryPath = prefs.getString(pathKey, defaultPath).orEmpty()
+        for (i in 0 until 6) {
+            val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
             if (categoryPath.isNotEmpty()) {
-                val categoryName = prefs.getString(nameKey, defaultName)
+                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
                 val categoryUrl = if (categoryPath.startsWith("http")) {
                     "$categoryPath?page=$page"
                 } else {
