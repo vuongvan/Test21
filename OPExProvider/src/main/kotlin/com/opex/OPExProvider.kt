@@ -158,7 +158,8 @@ class OPExProvider : MainAPI() {
         }.sortedBy { it.episode }
 
         val metaTags = mutableListOf<String>()
-        metaTags.add("⭐ $tmdbRating")
+        if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
+        if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
 
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")

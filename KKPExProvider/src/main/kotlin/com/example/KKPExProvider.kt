@@ -2,8 +2,6 @@ package com.example
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.Score
-import com.lagradost.cloudstream3.ShowStatus
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -57,16 +55,20 @@ class KKPExProvider : MainAPI() {
         // Default category
         categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"))
         
-        // Parallel lists for category configuration
-        val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
-        val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
-        val defaultPaths = listOf("quoc-gia/trung-quoc", "quoc-gia/han-quoc", "danh-sach/hoat-hinh", "", "", "")
-        val defaultNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+        // Custom categories with defaults
+        val categoryMap = mapOf(
+            Triple(PREF_CATEGORY_1, PREF_CATEGORY_1_NAME, "quoc-gia/trung-quoc", "Phim Trung Quốc"),
+            Triple(PREF_CATEGORY_2, PREF_CATEGORY_2_NAME, "quoc-gia/han-quoc", "Phim Hàn Quốc"),
+            Triple(PREF_CATEGORY_3, PREF_CATEGORY_3_NAME, "danh-sach/hoat-hinh", "Phim Hoạt Hình"),
+            Triple(PREF_CATEGORY_4, PREF_CATEGORY_4_NAME, "", "Danh Sách 4"),
+            Triple(PREF_CATEGORY_5, PREF_CATEGORY_5_NAME, "", "Danh Sách 5"),
+            Triple(PREF_CATEGORY_6, PREF_CATEGORY_6_NAME, "", "Danh Sách 6")
+        )
         
-        for (i in 0 until 6) {
-            val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
+        for ((pathKey, nameKey, defaultPath, defaultName) in categoryMap) {
+            val categoryPath = prefs.getString(pathKey, defaultPath).orEmpty()
             if (categoryPath.isNotEmpty()) {
-                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
+                val categoryName = prefs.getString(nameKey, defaultName)
                 val categoryUrl = if (categoryPath.startsWith("http")) {
                     "$categoryPath?page=$page"
                 } else {
@@ -121,13 +123,36 @@ class KKPExProvider : MainAPI() {
         }.sortedBy { it.episode }
 
         val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
+        val movieTags = mutableListOf<String>()
+        
+        // 1. Tag Trạng thái: Ongoing / Completed
         val isCompleted = movie.status == "completed"
-        
-        // Build tag list from categories (from API)
-        val movieTags = movie.category?.toMutableList() ?: mutableListOf()
-        
-        // Add quality if available
-        movie.quality?.let { if (it.isNotEmpty()) movieTags.add(it) }
+        movieTags.add(if (isCompleted) "Completed" else "Ongoing")
+
+        // 2. Tag Điểm TMDB: Làm tròn 1 chữ số thập phân (Ví dụ: 9.0)
+        movie.tmdb?.vote_average?.let { score ->
+            if (score > 0) {
+                val formattedScore = "%.1f".format(score).replace(",", ".")
+                movieTags.add("⭐ $formattedScore")
+            }
+        }
+
+        // 3. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
+        val totalEpisodes = movie.episode_total ?: ""
+        movie.episode_current?.let { current ->
+            val tagEp = when {
+                current.contains("Full", ignoreCase = true) -> "Full"
+                !isCompleted && totalEpisodes.isNotEmpty() && !current.contains("/") -> {
+                    "${episodesList.size}/$totalEpisodes"
+                }
+                current.contains("(") -> current.substringAfter("(").substringBefore(")")
+                else -> current.replace("Tập ", "")
+            }
+            movieTags.add("Tập $tagEp")
+        }
+
+        // 4. Tag Chất lượng
+        movie.quality?.let { movieTags.add(it) }
 
         val fullPlot = """
             Diễn viên: ${movie.actor?.joinToString(", ") ?: "Đang cập nhật"}
@@ -143,14 +168,6 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                // Set status to metadata
-                this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
-                // Add rating to metadata
-                movie.tmdb?.vote_average?.let { score ->
-                    if (score > 0) {
-                        this.score = Score.from10(score)
-                    }
-                }
             }
         } else {
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
@@ -158,12 +175,6 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                // Add rating to metadata
-                movie.tmdb?.vote_average?.let { score ->
-                    if (score > 0) {
-                        this.score = Score.from10(score)
-                    }
-                }
             }
         }
     }
@@ -231,8 +242,7 @@ data class KKMovie(
     @field:JsonProperty("episode_total") val episode_total: String? = null,
     @field:JsonProperty("quality") val quality: String? = null,
     @field:JsonProperty("actor") val actor: List<String>? = null,
-    @field:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
-    @field:JsonProperty("category") val category: List<String>? = null
+    @field:JsonProperty("tmdb") val tmdb: KKTMDB? = null
 )
 
 data class KKTMDB(
