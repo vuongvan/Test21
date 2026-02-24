@@ -2,6 +2,8 @@ package com.example
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
+import com.lagradost.cloudstream3.ShowStatus
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -125,15 +127,7 @@ class KKPExProvider : MainAPI() {
         val isCompleted = movie.status == "completed"
         movieTags.add(if (isCompleted) "Completed" else "Ongoing")
 
-        // 2. Tag Điểm TMDB: Làm tròn 1 chữ số thập phân (Ví dụ: 9.0)
-        movie.tmdb?.vote_average?.let { score ->
-            if (score > 0) {
-                val formattedScore = "%.1f".format(score).replace(",", ".")
-                movieTags.add("⭐ $formattedScore")
-            }
-        }
-
-        // 3. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
+        // 2. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
         val totalEpisodes = movie.episode_total ?: ""
         movie.episode_current?.let { current ->
             val tagEp = when {
@@ -147,7 +141,7 @@ class KKPExProvider : MainAPI() {
             movieTags.add("Tập $tagEp")
         }
 
-        // 4. Tag Chất lượng
+        // 3. Tag Chất lượng
         movie.quality?.let { movieTags.add(it) }
 
         val fullPlot = """
@@ -164,6 +158,14 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
+                // Set status to metadata
+                this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
+                // Add rating to metadata
+                movie.tmdb?.vote_average?.let { score ->
+                    if (score > 0) {
+                        this.score = Score.from10(score)
+                    }
+                }
             }
         } else {
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
@@ -171,6 +173,14 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
+                // Set status to metadata
+                this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
+                // Add rating to metadata
+                movie.tmdb?.vote_average?.let { score ->
+                    if (score > 0) {
+                        this.score = Score.from10(score)
+                    }
+                }
             }
         }
     }
