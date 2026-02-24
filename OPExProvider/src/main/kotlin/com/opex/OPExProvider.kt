@@ -1,6 +1,7 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -172,7 +173,7 @@ class OPExProvider : MainAPI() {
             // Add rating to metadata
             tmdbRating.toDoubleOrNull()?.let { score ->
                 if (score > 0) {
-                    this.rating = (score * 10).toInt()
+                    this.score = Score.from10(score)
                 }
             }
         }

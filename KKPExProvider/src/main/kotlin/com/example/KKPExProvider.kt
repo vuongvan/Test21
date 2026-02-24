@@ -2,6 +2,7 @@ package com.example
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -146,7 +147,7 @@ class KKPExProvider : MainAPI() {
                 // Add rating to metadata
                 movie.tmdb?.vote_average?.let { score ->
                     if (score > 0) {
-                        this.rating = (score * 10).toInt()
+                        this.score = Score.from10(score)
                     }
                 }
             }
@@ -161,7 +162,7 @@ class KKPExProvider : MainAPI() {
                 // Add rating to metadata
                 movie.tmdb?.vote_average?.let { score ->
                     if (score > 0) {
-                        this.rating = (score * 10).toInt()
+                        this.score = Score.from10(score)
                     }
                 }
             }
