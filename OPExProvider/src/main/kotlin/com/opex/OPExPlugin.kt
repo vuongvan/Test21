@@ -3,6 +3,7 @@ package com.opex
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import android.content.Context
+import androidx.appcompat.app.AppCompatActivity
 
 @CloudstreamPlugin
 class OPExPlugin: Plugin() {
@@ -14,5 +15,12 @@ class OPExPlugin: Plugin() {
         if (!domain.isNullOrEmpty()) provider.mainUrl = domain
         OPExProvider.ctx = context
         registerMainAPI(provider)
+        val activity = context as? AppCompatActivity
+        if (activity != null) {
+            openSettings = {
+                val frag = SettingsFragment(this, prefs)
+                frag.show(activity.supportFragmentManager, "OPExSettings")
+            }
+        }
     }
 }

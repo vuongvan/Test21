@@ -2,6 +2,7 @@ package com.example
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import android.content.Context
+import androidx.appcompat.app.AppCompatActivity
 
 @CloudstreamPlugin
 class ExamplePlugin: Plugin() {
@@ -14,5 +15,13 @@ class ExamplePlugin: Plugin() {
         if (!domain.isNullOrEmpty()) provider.mainUrl = domain
         ExampleProvider.ctx = context
         registerMainAPI(provider)
+        // Expose settings UI in CloudStream settings
+        val activity = context as? AppCompatActivity
+        if (activity != null) {
+            openSettings = {
+                val frag = SettingsFragment(this, prefs)
+                frag.show(activity.supportFragmentManager, "ExampleSettings")
+            }
+        }
     }
 }
