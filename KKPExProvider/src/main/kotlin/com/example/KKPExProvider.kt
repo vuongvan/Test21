@@ -119,36 +119,13 @@ class KKPExProvider : MainAPI() {
         }.sortedBy { it.episode }
 
         val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
-        val movieTags = mutableListOf<String>()
-        
-        // 1. Tag Trạng thái: Ongoing / Completed
         val isCompleted = movie.status == "completed"
-        movieTags.add(if (isCompleted) "Completed" else "Ongoing")
-
-        // 2. Tag Điểm TMDB: Làm tròn 1 chữ số thập phân (Ví dụ: 9.0)
-        movie.tmdb?.vote_average?.let { score ->
-            if (score > 0) {
-                val formattedScore = "%.1f".format(score).replace(",", ".")
-                movieTags.add("⭐ $formattedScore")
-            }
-        }
-
-        // 3. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
-        val totalEpisodes = movie.episode_total ?: ""
-        movie.episode_current?.let { current ->
-            val tagEp = when {
-                current.contains("Full", ignoreCase = true) -> "Full"
-                !isCompleted && totalEpisodes.isNotEmpty() && !current.contains("/") -> {
-                    "${episodesList.size}/$totalEpisodes"
-                }
-                current.contains("(") -> current.substringAfter("(").substringBefore(")")
-                else -> current.replace("Tập ", "")
-            }
-            movieTags.add("Tập $tagEp")
-        }
-
-        // 4. Tag Chất lượng
-        movie.quality?.let { movieTags.add(it) }
+        
+        // Build tag list from categories (from API)
+        val movieTags = movie.category?.toMutableList() ?: mutableListOf()
+        
+        // Add quality if available
+        movie.quality?.let { if (it.isNotEmpty()) movieTags.add(it) }
 
         val fullPlot = """
             Diễn viên: ${movie.actor?.joinToString(", ") ?: "Đang cập nhật"}
@@ -164,6 +141,14 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
+                // Set status to metadata
+                this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
+                // Add rating to metadata
+                movie.tmdb?.vote_average?.let { score ->
+                    if (score > 0) {
+                        this.rating = (score * 10).toInt()
+                    }
+                }
             }
         } else {
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
@@ -171,6 +156,14 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
+                // Set status to metadata
+                this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
+                // Add rating to metadata
+                movie.tmdb?.vote_average?.let { score ->
+                    if (score > 0) {
+                        this.rating = (score * 10).toInt()
+                    }
+                }
             }
         }
     }
@@ -238,7 +231,8 @@ data class KKMovie(
     @field:JsonProperty("episode_total") val episode_total: String? = null,
     @field:JsonProperty("quality") val quality: String? = null,
     @field:JsonProperty("actor") val actor: List<String>? = null,
-    @field:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+    @field:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
+    @field:JsonProperty("category") val category: List<String>? = null
 )
 
 data class KKTMDB(

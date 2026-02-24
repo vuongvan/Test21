@@ -157,9 +157,7 @@ class OPExProvider : MainAPI() {
         }.sortedBy { it.episode }
 
         val metaTags = mutableListOf<String>()
-        if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
         metaTags.add("⭐ $tmdbRating")
-        if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
 
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
@@ -168,7 +166,15 @@ class OPExProvider : MainAPI() {
             this.posterUrl = poster
             this.plot = plotClean
             this.year = movieYear
-            this.tags = metaTags 
+            this.tags = metaTags
+            // Set status to metadata
+            this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
+            // Add rating to metadata
+            tmdbRating.toDoubleOrNull()?.let { score ->
+                if (score > 0) {
+                    this.rating = (score * 10).toInt()
+                }
+            }
         }
     }
 
