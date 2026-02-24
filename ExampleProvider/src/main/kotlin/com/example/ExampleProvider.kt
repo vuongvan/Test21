@@ -4,8 +4,14 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import android.content.Context
 
 class ExampleProvider : MainAPI() {
+    companion object {
+        lateinit var ctx: Context
+        const val PREFS_NAME = "example_provider_prefs"
+        const val PREF_DOMAIN = "domain"
+    }
     override var mainUrl = "https://phimapi.com"
     override var name = "KK Phim"
     override val hasMainPage = true

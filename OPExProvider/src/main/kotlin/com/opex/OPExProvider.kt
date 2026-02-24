@@ -5,8 +5,14 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.util.Locale
+import android.content.Context
 
 class OPExProvider : MainAPI() {
+    companion object {
+        lateinit var ctx: Context
+        const val PREFS_NAME = "opex_provider_prefs"
+        const val PREF_DOMAIN = "domain"
+    }
     override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
     override val hasMainPage = true

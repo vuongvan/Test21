@@ -8,6 +8,11 @@ import android.content.Context
 class OPExPlugin: Plugin() {
     override fun load(context: Context) {
         // Đăng ký provider OPhim
-        registerMainAPI(OPExProvider())
+        val prefs = context.getSharedPreferences("opex_provider_prefs", Context.MODE_PRIVATE)
+        val domain = prefs.getString("domain", null)
+        val provider = OPExProvider()
+        if (!domain.isNullOrEmpty()) provider.mainUrl = domain
+        OPExProvider.ctx = context
+        registerMainAPI(provider)
     }
 }
