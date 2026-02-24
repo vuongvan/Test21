@@ -5,22 +5,22 @@ import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
 
 @CloudstreamPlugin
-class ExamplePlugin: Plugin() {
+class KKPExPlugin: Plugin() {
     override fun load(context: Context) {
         // Đăng ký provider của bạn tại đây
         // Load saved domain from SharedPreferences (if user changed it in SettingsActivity)
-        val prefs = context.getSharedPreferences("example_provider_prefs", Context.MODE_PRIVATE)
-        val domain = prefs.getString("domain", null)
-        val provider = ExampleProvider()
+        val prefs = context.getSharedPreferences(KKPExProvider.PREFS_NAME, Context.MODE_PRIVATE)
+        val domain = prefs.getString(KKPExProvider.PREF_DOMAIN, null)
+        val provider = KKPExProvider()
         if (!domain.isNullOrEmpty()) provider.mainUrl = domain
-        ExampleProvider.ctx = context
+        KKPExProvider.ctx = context
         registerMainAPI(provider)
         // Expose settings UI in CloudStream settings
         val activity = context as? AppCompatActivity
         if (activity != null) {
             openSettings = {
                 val frag = SettingsFragment(this, prefs)
-                frag.show(activity.supportFragmentManager, "ExampleSettings")
+                frag.show(activity.supportFragmentManager, "KKPExSettings")
             }
         }
     }

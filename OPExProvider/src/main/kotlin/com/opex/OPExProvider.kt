@@ -1,6 +1,7 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -12,6 +13,38 @@ class OPExProvider : MainAPI() {
         lateinit var ctx: Context
         const val PREFS_NAME = "opex_provider_prefs"
         const val PREF_DOMAIN = "domain"
+        const val PREF_CATEGORY_1 = "category_1"
+        const val PREF_CATEGORY_2 = "category_2"
+        const val PREF_CATEGORY_3 = "category_3"
+        const val PREF_CATEGORY_4 = "category_4"
+        const val PREF_CATEGORY_5 = "category_5"
+        const val PREF_CATEGORY_6 = "category_6"
+        const val PREF_CATEGORY_1_NAME = "category_1_name"
+        const val PREF_CATEGORY_2_NAME = "category_2_name"
+        const val PREF_CATEGORY_3_NAME = "category_3_name"
+        const val PREF_CATEGORY_4_NAME = "category_4_name"
+        const val PREF_CATEGORY_5_NAME = "category_5_name"
+        const val PREF_CATEGORY_6_NAME = "category_6_name"
+
+        fun getPreferenceKey(i: Int): String = when (i) {
+            1 -> PREF_CATEGORY_1
+            2 -> PREF_CATEGORY_2
+            3 -> PREF_CATEGORY_3
+            4 -> PREF_CATEGORY_4
+            5 -> PREF_CATEGORY_5
+            6 -> PREF_CATEGORY_6
+            else -> PREF_CATEGORY_1
+        }
+
+        fun getPreferenceNameKey(i: Int): String = when (i) {
+            1 -> PREF_CATEGORY_1_NAME
+            2 -> PREF_CATEGORY_2_NAME
+            3 -> PREF_CATEGORY_3_NAME
+            4 -> PREF_CATEGORY_4_NAME
+            5 -> PREF_CATEGORY_5_NAME
+            6 -> PREF_CATEGORY_6_NAME
+            else -> PREF_CATEGORY_1_NAME
+        }
     }
     override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
@@ -23,14 +56,37 @@ class OPExProvider : MainAPI() {
     private val imgDomain = "https://img.ophim.live/uploads/movies/"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = listOf(
-            Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"),
-            Pair("$mainUrl/v1/api/danh-sach/phim-le?page=$page", "Phim Lẻ Mới"),
-            Pair("$mainUrl/v1/api/quoc-gia/trung-quoc?page=$page", "Phim Trung Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/han-quoc?page=$page", "Phim Hàn Quốc"),
-            Pair("$mainUrl/v1/api/danh-sach/hoat-hinh?page=$page", "Phim Hoạt Hình")
-        )
+        val items = getCustomCategories(page)
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
+    }
+
+    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val categories = mutableListOf<Pair<String, String>>()
+        
+        // Default category
+        categories.add(Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"))
+        
+        // Parallel lists for category configuration
+        val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
+        val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
+        val defaultPaths = listOf("v1/api/danh-sach/phim-le", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
+        val defaultNames = listOf("Phim Lẻ Mới", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+        
+        for (i in 0 until 6) {
+            val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
+            if (categoryPath.isNotEmpty()) {
+                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
+                val categoryUrl = if (categoryPath.startsWith("http")) {
+                    categoryPath
+                } else {
+                    "$mainUrl/$categoryPath?page=$page"
+                }
+                categories.add(Pair(categoryUrl, categoryName))
+            }
+        }
+        
+        return categories
     }
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
@@ -103,7 +159,6 @@ class OPExProvider : MainAPI() {
 
         val metaTags = mutableListOf<String>()
         if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
-        metaTags.add("⭐ $tmdbRating")
         if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
 
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
@@ -113,7 +168,14 @@ class OPExProvider : MainAPI() {
             this.posterUrl = poster
             this.plot = plotClean
             this.year = movieYear
-            this.tags = metaTags 
+            this.tags = metaTags
+            // Set status to metadata
+            this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
+            // Add rating to metadata
+            val scoreValue = tmdbRating.toDoubleOrNull()
+            if (scoreValue != null && scoreValue > 0) {
+                this.score = Score.from10(scoreValue)
+            }
         }
     }
 
@@ -134,5 +196,14 @@ data class OPListResponse(
     @field:JsonProperty("items") val items: List<OPItem>? = null, 
     @field:JsonProperty("data") val data: OPListData? = null
 )
-data class OPListData(val items: List<OPItem>?)
-data class OPItem(val name: String?, val slug: String?, val poster_url: String?, val thumb_url: String?)
+
+data class OPListData(
+    @field:JsonProperty("items") val items: List<OPItem>? = null
+)
+
+data class OPItem(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("slug") val slug: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+)

@@ -2,15 +2,28 @@ package com.example
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
 
-class ExampleProvider : MainAPI() {
+class KKPExProvider : MainAPI() {
     companion object {
         lateinit var ctx: Context
-        const val PREFS_NAME = "example_provider_prefs"
+        const val PREFS_NAME = "kkpex_provider_prefs"
         const val PREF_DOMAIN = "domain"
+        const val PREF_CATEGORY_1 = "category_1"
+        const val PREF_CATEGORY_2 = "category_2"
+        const val PREF_CATEGORY_3 = "category_3"
+        const val PREF_CATEGORY_4 = "category_4"
+        const val PREF_CATEGORY_5 = "category_5"
+        const val PREF_CATEGORY_6 = "category_6"
+        const val PREF_CATEGORY_1_NAME = "category_1_name"
+        const val PREF_CATEGORY_2_NAME = "category_2_name"
+        const val PREF_CATEGORY_3_NAME = "category_3_name"
+        const val PREF_CATEGORY_4_NAME = "category_4_name"
+        const val PREF_CATEGORY_5_NAME = "category_5_name"
+        const val PREF_CATEGORY_6_NAME = "category_6_name"
     }
     override var mainUrl = "https://phimapi.com"
     override var name = "KK Phim"
@@ -36,13 +49,37 @@ class ExampleProvider : MainAPI() {
         } catch (e: Exception) { emptyList() }
     }
 
+    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val categories = mutableListOf<Pair<String, String>>()
+        
+        // Default category
+        categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"))
+        
+        // Parallel lists for category configuration
+        val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
+        val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
+        val defaultPaths = listOf("quoc-gia/trung-quoc", "quoc-gia/han-quoc", "danh-sach/hoat-hinh", "", "", "")
+        val defaultNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+        
+        for (i in 0 until 6) {
+            val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
+            if (categoryPath.isNotEmpty()) {
+                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
+                val categoryUrl = if (categoryPath.startsWith("http")) {
+                    "$categoryPath?page=$page"
+                } else {
+                    "${mainUrl}/v1/api/$categoryPath?page=$page"
+                }
+                categories.add(Pair(categoryUrl, categoryName))
+            }
+        }
+        
+        return categories
+    }
+    
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = listOf(
-            Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"),
-            Pair("$mainUrl/v1/api/quoc-gia/trung-quoc?page=$page", "Phim Trung Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/han-quoc?page=$page", "Phim Hàn Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/nhat-ban?page=$page", "Phim Nhật Bản")
-        )
+        val items = getCustomCategories(page)
         val homePageLists = items.map { (url, title) -> HomePageList(title, getListFromUrl(url)) }
         return newHomePageResponse(homePageLists, true)
     }
@@ -89,15 +126,7 @@ class ExampleProvider : MainAPI() {
         val isCompleted = movie.status == "completed"
         movieTags.add(if (isCompleted) "Completed" else "Ongoing")
 
-        // 2. Tag Điểm TMDB: Làm tròn 1 chữ số thập phân (Ví dụ: 9.0)
-        movie.tmdb?.vote_average?.let { score ->
-            if (score > 0) {
-                val formattedScore = "%.1f".format(score).replace(",", ".")
-                movieTags.add("⭐ $formattedScore")
-            }
-        }
-
-        // 3. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
+        // 2. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
         val totalEpisodes = movie.episode_total ?: ""
         movie.episode_current?.let { current ->
             val tagEp = when {
@@ -111,7 +140,7 @@ class ExampleProvider : MainAPI() {
             movieTags.add("Tập $tagEp")
         }
 
-        // 4. Tag Chất lượng
+        // 3. Tag Chất lượng
         movie.quality?.let { movieTags.add(it) }
 
         val fullPlot = """
@@ -128,6 +157,11 @@ class ExampleProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
+                // Add rating to metadata
+                val scoreValue = movie.tmdb?.vote_average
+                if (scoreValue != null && scoreValue > 0) {
+                    this.score = Score.from10(scoreValue)
+                }
             }
         } else {
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
@@ -135,6 +169,11 @@ class ExampleProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
+                // Add rating to metadata
+                val scoreValue = movie.tmdb?.vote_average
+                if (scoreValue != null && scoreValue > 0) {
+                    this.score = Score.from10(scoreValue)
+                }
             }
         }
     }
@@ -152,28 +191,69 @@ class ExampleProvider : MainAPI() {
     }
 }
 
-// --- DATA MODELS ---
-data class KKListResponse(@param:JsonProperty("items") val items: List<KKItem>? = null, @param:JsonProperty("data") val data: KKListData? = null)
-data class KKItem(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("slug") val slug: String? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null)
-data class KKSearchResponse(@param:JsonProperty("data") val data: KKListData? = null)
-data class KKListData(@param:JsonProperty("items") val items: List<KKItem>? = null)
-data class KKDetailResponse(@param:JsonProperty("movie") val movie: KKMovie? = null, @param:JsonProperty("episodes") val episodes: List<KKServer>? = null)
-
-data class KKMovie(
-    @param:JsonProperty("name") val name: String? = null, 
-    @param:JsonProperty("type") val type: String? = null, 
-    @param:JsonProperty("status") val status: String? = null,
-    @param:JsonProperty("poster_url") val poster_url: String? = null,
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
-    @param:JsonProperty("content") val content: String? = null,
-    @param:JsonProperty("year") val year: Int? = null,
-    @param:JsonProperty("episode_current") val episode_current: String? = null,
-    @param:JsonProperty("episode_total") val episode_total: String? = null,
-    @param:JsonProperty("quality") val quality: String? = null,
-    @param:JsonProperty("actor") val actor: List<String>? = null,
-    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+// --- AUTHENTICATION MODELS ---
+data class LoginRequest(
+    @param:JsonProperty("username") val username: String,
+    @param:JsonProperty("password") val password: String
 )
 
-data class KKTMDB(@param:JsonProperty("vote_average") val vote_average: Double? = null)
-data class KKServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<KKEpisode>? = null)
-data class KKEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
+data class LoginResponse(
+    @param:JsonProperty("success") val success: Boolean,
+    @param:JsonProperty("token") val token: String? = null,
+    @param:JsonProperty("message") val message: String? = null
+)
+
+// --- DATA MODELS ---
+data class KKListResponse(
+    @field:JsonProperty("items") val items: List<KKItem>? = null,
+    @field:JsonProperty("data") val data: KKListData? = null
+)
+
+data class KKItem(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("slug") val slug: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+)
+
+data class KKSearchResponse(
+    @field:JsonProperty("data") val data: KKListData? = null
+)
+
+data class KKListData(
+    @field:JsonProperty("items") val items: List<KKItem>? = null
+)
+
+data class KKDetailResponse(
+    @field:JsonProperty("movie") val movie: KKMovie? = null,
+    @field:JsonProperty("episodes") val episodes: List<KKServer>? = null
+)
+
+data class KKMovie(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("type") val type: String? = null,
+    @field:JsonProperty("status") val status: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @field:JsonProperty("content") val content: String? = null,
+    @field:JsonProperty("year") val year: Int? = null,
+    @field:JsonProperty("episode_current") val episode_current: String? = null,
+    @field:JsonProperty("episode_total") val episode_total: String? = null,
+    @field:JsonProperty("quality") val quality: String? = null,
+    @field:JsonProperty("actor") val actor: List<String>? = null,
+    @field:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+)
+
+data class KKTMDB(
+    @field:JsonProperty("vote_average") val vote_average: Double? = null
+)
+
+data class KKServer(
+    @field:JsonProperty("server_name") val server_name: String? = null,
+    @field:JsonProperty("server_data") val server_data: List<KKEpisode>? = null
+)
+
+data class KKEpisode(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
+)

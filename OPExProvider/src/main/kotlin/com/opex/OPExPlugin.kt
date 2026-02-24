@@ -9,8 +9,8 @@ import androidx.appcompat.app.AppCompatActivity
 class OPExPlugin: Plugin() {
     override fun load(context: Context) {
         // Đăng ký provider OPhim
-        val prefs = context.getSharedPreferences("opex_provider_prefs", Context.MODE_PRIVATE)
-        val domain = prefs.getString("domain", null)
+        val prefs = context.getSharedPreferences(OPExProvider.PREFS_NAME, Context.MODE_PRIVATE)
+        val domain = prefs.getString(OPExProvider.PREF_DOMAIN, null)
         val provider = OPExProvider()
         if (!domain.isNullOrEmpty()) provider.mainUrl = domain
         OPExProvider.ctx = context
