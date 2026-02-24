@@ -158,8 +158,6 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                // Set status to metadata
-                this.showStatus = if (isCompleted) ShowStatus.Completed else ShowStatus.Ongoing
                 // Add rating to metadata
                 movie.tmdb?.vote_average?.let { score ->
                     if (score > 0) {
