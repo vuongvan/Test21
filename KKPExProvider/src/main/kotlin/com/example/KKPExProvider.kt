@@ -6,11 +6,14 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
 
-class ExampleProvider : MainAPI() {
+class KKPExProvider : MainAPI() {
     companion object {
         lateinit var ctx: Context
-        const val PREFS_NAME = "example_provider_prefs"
+        const val PREFS_NAME = "kkpex_provider_prefs"
         const val PREF_DOMAIN = "domain"
+        const val PREF_USERNAME = "username"
+        const val PREF_PASSWORD = "password"
+        const val PREF_IS_LOGGED_IN = "is_logged_in"
     }
     override var mainUrl = "https://phimapi.com"
     override var name = "KK Phim"
@@ -151,6 +154,18 @@ class ExampleProvider : MainAPI() {
         return true
     }
 }
+
+// --- AUTHENTICATION MODELS ---
+data class LoginRequest(
+    @param:JsonProperty("username") val username: String,
+    @param:JsonProperty("password") val password: String
+)
+
+data class LoginResponse(
+    @param:JsonProperty("success") val success: Boolean,
+    @param:JsonProperty("token") val token: String? = null,
+    @param:JsonProperty("message") val message: String? = null
+)
 
 // --- DATA MODELS ---
 data class KKListResponse(@param:JsonProperty("items") val items: List<KKItem>? = null, @param:JsonProperty("data") val data: KKListData? = null)
