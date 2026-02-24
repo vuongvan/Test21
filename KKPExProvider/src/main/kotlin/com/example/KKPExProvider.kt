@@ -201,27 +201,56 @@ data class LoginResponse(
 )
 
 // --- DATA MODELS ---
-data class KKListResponse(@param:JsonProperty("items") val items: List<KKItem>? = null, @param:JsonProperty("data") val data: KKListData? = null)
-data class KKItem(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("slug") val slug: String? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null)
-data class KKSearchResponse(@param:JsonProperty("data") val data: KKListData? = null)
-data class KKListData(@param:JsonProperty("items") val items: List<KKItem>? = null)
-data class KKDetailResponse(@param:JsonProperty("movie") val movie: KKMovie? = null, @param:JsonProperty("episodes") val episodes: List<KKServer>? = null)
-
-data class KKMovie(
-    @param:JsonProperty("name") val name: String? = null, 
-    @param:JsonProperty("type") val type: String? = null, 
-    @param:JsonProperty("status") val status: String? = null,
-    @param:JsonProperty("poster_url") val poster_url: String? = null,
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
-    @param:JsonProperty("content") val content: String? = null,
-    @param:JsonProperty("year") val year: Int? = null,
-    @param:JsonProperty("episode_current") val episode_current: String? = null,
-    @param:JsonProperty("episode_total") val episode_total: String? = null,
-    @param:JsonProperty("quality") val quality: String? = null,
-    @param:JsonProperty("actor") val actor: List<String>? = null,
-    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+data class KKListResponse(
+    @field:JsonProperty("items") val items: List<KKItem>? = null,
+    @field:JsonProperty("data") val data: KKListData? = null
 )
 
-data class KKTMDB(@param:JsonProperty("vote_average") val vote_average: Double? = null)
-data class KKServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<KKEpisode>? = null)
-data class KKEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
+data class KKItem(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("slug") val slug: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+)
+
+data class KKSearchResponse(
+    @field:JsonProperty("data") val data: KKListData? = null
+)
+
+data class KKListData(
+    @field:JsonProperty("items") val items: List<KKItem>? = null
+)
+
+data class KKDetailResponse(
+    @field:JsonProperty("movie") val movie: KKMovie? = null,
+    @field:JsonProperty("episodes") val episodes: List<KKServer>? = null
+)
+
+data class KKMovie(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("type") val type: String? = null,
+    @field:JsonProperty("status") val status: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @field:JsonProperty("content") val content: String? = null,
+    @field:JsonProperty("year") val year: Int? = null,
+    @field:JsonProperty("episode_current") val episode_current: String? = null,
+    @field:JsonProperty("episode_total") val episode_total: String? = null,
+    @field:JsonProperty("quality") val quality: String? = null,
+    @field:JsonProperty("actor") val actor: List<String>? = null,
+    @field:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+)
+
+data class KKTMDB(
+    @field:JsonProperty("vote_average") val vote_average: Double? = null
+)
+
+data class KKServer(
+    @field:JsonProperty("server_name") val server_name: String? = null,
+    @field:JsonProperty("server_data") val server_data: List<KKEpisode>? = null
+)
+
+data class KKEpisode(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
+)

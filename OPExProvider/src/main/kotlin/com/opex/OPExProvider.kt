@@ -134,5 +134,14 @@ data class OPListResponse(
     @field:JsonProperty("items") val items: List<OPItem>? = null, 
     @field:JsonProperty("data") val data: OPListData? = null
 )
-data class OPListData(val items: List<OPItem>?)
-data class OPItem(val name: String?, val slug: String?, val poster_url: String?, val thumb_url: String?)
+
+data class OPListData(
+    @field:JsonProperty("items") val items: List<OPItem>? = null
+)
+
+data class OPItem(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("slug") val slug: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+)
