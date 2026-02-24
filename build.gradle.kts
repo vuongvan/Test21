@@ -86,6 +86,6 @@ subprojects {
     }
 }
 
-task<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+    tasks.register<Delete>("clean") {
+        delete(rootProject.layout.buildDirectory)
 }
