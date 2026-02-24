@@ -17,6 +17,12 @@ class KKPExProvider : MainAPI() {
         const val PREF_CATEGORY_4 = "category_4"
         const val PREF_CATEGORY_5 = "category_5"
         const val PREF_CATEGORY_6 = "category_6"
+        const val PREF_CATEGORY_1_NAME = "category_1_name"
+        const val PREF_CATEGORY_2_NAME = "category_2_name"
+        const val PREF_CATEGORY_3_NAME = "category_3_name"
+        const val PREF_CATEGORY_4_NAME = "category_4_name"
+        const val PREF_CATEGORY_5_NAME = "category_5_name"
+        const val PREF_CATEGORY_6_NAME = "category_6_name"
     }
     override var mainUrl = "https://phimapi.com"
     override var name = "KK Phim"
@@ -51,23 +57,24 @@ class KKPExProvider : MainAPI() {
         
         // Custom categories with defaults
         val categoryMap = mapOf(
-            Pair(PREF_CATEGORY_1, "Phim Trung Quốc", "quoc-gia/trung-quoc"),
-            Pair(PREF_CATEGORY_2, "Phim Hàn Quốc", "quoc-gia/han-quoc"),
-            Pair(PREF_CATEGORY_3, "Phim Hoạt Hình", "danh-sach/hoat-hinh"),
-            Pair(PREF_CATEGORY_4, "Danh Sách 4", ""),
-            Pair(PREF_CATEGORY_5, "Danh Sách 5", ""),
-            Pair(PREF_CATEGORY_6, "Danh Sách 6", "")
+            Triple(PREF_CATEGORY_1, PREF_CATEGORY_1_NAME, "quoc-gia/trung-quoc", "Phim Trung Quốc"),
+            Triple(PREF_CATEGORY_2, PREF_CATEGORY_2_NAME, "quoc-gia/han-quoc", "Phim Hàn Quốc"),
+            Triple(PREF_CATEGORY_3, PREF_CATEGORY_3_NAME, "danh-sach/hoat-hinh", "Phim Hoạt Hình"),
+            Triple(PREF_CATEGORY_4, PREF_CATEGORY_4_NAME, "", "Danh Sách 4"),
+            Triple(PREF_CATEGORY_5, PREF_CATEGORY_5_NAME, "", "Danh Sách 5"),
+            Triple(PREF_CATEGORY_6, PREF_CATEGORY_6_NAME, "", "Danh Sách 6")
         )
         
-        for ((prefKey, displayName, default) in categoryMap) {
-            val categoryPath = prefs.getString(prefKey, default).orEmpty()
+        for ((pathKey, nameKey, defaultPath, defaultName) in categoryMap) {
+            val categoryPath = prefs.getString(pathKey, defaultPath).orEmpty()
             if (categoryPath.isNotEmpty()) {
+                val categoryName = prefs.getString(nameKey, defaultName)
                 val categoryUrl = if (categoryPath.startsWith("http")) {
                     "$categoryPath?page=$page"
                 } else {
                     "${mainUrl}/v1/api/$categoryPath?page=$page"
                 }
-                categories.add(Pair(categoryUrl, displayName))
+                categories.add(Pair(categoryUrl, categoryName))
             }
         }
         

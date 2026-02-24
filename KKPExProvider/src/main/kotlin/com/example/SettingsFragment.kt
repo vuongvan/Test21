@@ -62,6 +62,7 @@ class SettingsFragment(
         }
 
         val categoryEdits = mutableListOf<EditText>()
+        val categoryNameEdits = mutableListOf<EditText>()
         val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         for (i in 1..6) {
             val categoryLabel = TextView(ctx).apply {
@@ -80,6 +81,15 @@ class SettingsFragment(
                 else -> KKPExProvider.PREF_CATEGORY_6
             }
 
+            val preNameKey = when (i) {
+                1 -> KKPExProvider.PREF_CATEGORY_1_NAME
+                2 -> KKPExProvider.PREF_CATEGORY_2_NAME
+                3 -> KKPExProvider.PREF_CATEGORY_3_NAME
+                4 -> KKPExProvider.PREF_CATEGORY_4_NAME
+                5 -> KKPExProvider.PREF_CATEGORY_5_NAME
+                else -> KKPExProvider.PREF_CATEGORY_6_NAME
+            }
+
             val defaultValue = when (i) {
                 1 -> "quoc-gia/trung-quoc"
                 2 -> "quoc-gia/han-quoc"
@@ -87,14 +97,42 @@ class SettingsFragment(
                 else -> ""
             }
 
+            // Name input
+            val categoryNameLabel = TextView(ctx).apply {
+                text = "  Tên hiển thị:"
+                textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(0, 8, 0, 4)
+            }
+
+            val categoryNameEdit = EditText(ctx).apply {
+                hint = "Nhập tên tuỳ chỉnh (vd: Phim Trung Quốc)"
+                setText(sharedPref.getString(preNameKey, categoryNames[i - 1]))
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(10, 8, 10, 8)
+            }
+
+            // Path input
+            val categoryPathLabel = TextView(ctx).apply {
+                text = "  Đường dẫn API:"
+                textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(0, 8, 0, 4)
+            }
+
             val categoryEdit = EditText(ctx).apply {
                 hint = "Ví dụ: quoc-gia/han-quoc hoặc v1/api/phim-le"
                 setText(sharedPref.getString(preKey, defaultValue))
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(10, 8, 10, 8)
             }
 
             layout.addView(categoryLabel)
+            layout.addView(categoryNameLabel)
+            layout.addView(categoryNameEdit)
+            layout.addView(categoryPathLabel)
             layout.addView(categoryEdit)
+            categoryNameEdits.add(categoryNameEdit)
             categoryEdits.add(categoryEdit)
         }
 
@@ -115,13 +153,19 @@ class SettingsFragment(
                 
                 sharedPref.edit().apply {
                     putString(KKPExProvider.PREF_DOMAIN, domain)
-                    // Save custom categories
+                    // Save custom categories and names
                     putString(KKPExProvider.PREF_CATEGORY_1, categoryEdits.getOrNull(0)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_1_NAME, categoryNameEdits.getOrNull(0)?.text.toString().trim())
                     putString(KKPExProvider.PREF_CATEGORY_2, categoryEdits.getOrNull(1)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_2_NAME, categoryNameEdits.getOrNull(1)?.text.toString().trim())
                     putString(KKPExProvider.PREF_CATEGORY_3, categoryEdits.getOrNull(2)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_3_NAME, categoryNameEdits.getOrNull(2)?.text.toString().trim())
                     putString(KKPExProvider.PREF_CATEGORY_4, categoryEdits.getOrNull(3)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_4_NAME, categoryNameEdits.getOrNull(3)?.text.toString().trim())
                     putString(KKPExProvider.PREF_CATEGORY_5, categoryEdits.getOrNull(4)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_5_NAME, categoryNameEdits.getOrNull(4)?.text.toString().trim())
                     putString(KKPExProvider.PREF_CATEGORY_6, categoryEdits.getOrNull(5)?.text.toString().trim())
+                    putString(KKPExProvider.PREF_CATEGORY_6_NAME, categoryNameEdits.getOrNull(5)?.text.toString().trim())
                     apply()
                 }
                 
@@ -148,20 +192,26 @@ class SettingsFragment(
             setOnClickListener {
                 sharedPref.edit().apply {
                     remove(KKPExProvider.PREF_CATEGORY_1)
+                    remove(KKPExProvider.PREF_CATEGORY_1_NAME)
                     remove(KKPExProvider.PREF_CATEGORY_2)
+                    remove(KKPExProvider.PREF_CATEGORY_2_NAME)
                     remove(KKPExProvider.PREF_CATEGORY_3)
+                    remove(KKPExProvider.PREF_CATEGORY_3_NAME)
                     remove(KKPExProvider.PREF_CATEGORY_4)
+                    remove(KKPExProvider.PREF_CATEGORY_4_NAME)
                     remove(KKPExProvider.PREF_CATEGORY_5)
+                    remove(KKPExProvider.PREF_CATEGORY_5_NAME)
                     remove(KKPExProvider.PREF_CATEGORY_6)
+                    remove(KKPExProvider.PREF_CATEGORY_6_NAME)
                     apply()
                 }
                 domainEdit.setText(KKPExProvider().mainUrl)
-                categoryEdits[0].setText("quoc-gia/trung-quoc")
-                categoryEdits[1].setText("quoc-gia/han-quoc")
-                categoryEdits[2].setText("danh-sach/hoat-hinh")
-                categoryEdits[3].setText("")
-                categoryEdits[4].setText("")
-                categoryEdits[5].setText("")
+                val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+                val categoryDefaultPaths = listOf("quoc-gia/trung-quoc", "quoc-gia/han-quoc", "danh-sach/hoat-hinh", "", "", "")
+                for (i in 0..5) {
+                    categoryNameEdits.getOrNull(i)?.setText(categoryNames[i])
+                    categoryEdits.getOrNull(i)?.setText(categoryDefaultPaths[i])
+                }
                 showToast("Đã đặt lại thành mặc định")
                 AlertDialog.Builder(ctx)
                     .setTitle("Đặt Lại & Khởi Động Lại")

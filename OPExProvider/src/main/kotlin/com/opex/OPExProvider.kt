@@ -12,6 +12,38 @@ class OPExProvider : MainAPI() {
         lateinit var ctx: Context
         const val PREFS_NAME = "opex_provider_prefs"
         const val PREF_DOMAIN = "domain"
+        const val PREF_CATEGORY_1 = "category_1"
+        const val PREF_CATEGORY_2 = "category_2"
+        const val PREF_CATEGORY_3 = "category_3"
+        const val PREF_CATEGORY_4 = "category_4"
+        const val PREF_CATEGORY_5 = "category_5"
+        const val PREF_CATEGORY_6 = "category_6"
+        const val PREF_CATEGORY_1_NAME = "category_1_name"
+        const val PREF_CATEGORY_2_NAME = "category_2_name"
+        const val PREF_CATEGORY_3_NAME = "category_3_name"
+        const val PREF_CATEGORY_4_NAME = "category_4_name"
+        const val PREF_CATEGORY_5_NAME = "category_5_name"
+        const val PREF_CATEGORY_6_NAME = "category_6_name"
+
+        fun getPreferenceKey(i: Int): String = when (i) {
+            1 -> PREF_CATEGORY_1
+            2 -> PREF_CATEGORY_2
+            3 -> PREF_CATEGORY_3
+            4 -> PREF_CATEGORY_4
+            5 -> PREF_CATEGORY_5
+            6 -> PREF_CATEGORY_6
+            else -> PREF_CATEGORY_1
+        }
+
+        fun getPreferenceNameKey(i: Int): String = when (i) {
+            1 -> PREF_CATEGORY_1_NAME
+            2 -> PREF_CATEGORY_2_NAME
+            3 -> PREF_CATEGORY_3_NAME
+            4 -> PREF_CATEGORY_4_NAME
+            5 -> PREF_CATEGORY_5_NAME
+            6 -> PREF_CATEGORY_6_NAME
+            else -> PREF_CATEGORY_1_NAME
+        }
     }
     override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
@@ -23,14 +55,41 @@ class OPExProvider : MainAPI() {
     private val imgDomain = "https://img.ophim.live/uploads/movies/"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = listOf(
-            Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"),
-            Pair("$mainUrl/v1/api/danh-sach/phim-le?page=$page", "Phim Lẻ Mới"),
-            Pair("$mainUrl/v1/api/quoc-gia/trung-quoc?page=$page", "Phim Trung Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/han-quoc?page=$page", "Phim Hàn Quốc"),
-            Pair("$mainUrl/v1/api/danh-sach/hoat-hinh?page=$page", "Phim Hoạt Hình")
-        )
+        val items = getCustomCategories(page)
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
+    }
+
+    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val categories = mutableListOf<Pair<String, String>>()
+        
+        // Default category
+        categories.add(Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"))
+        
+        // Custom categories with defaults
+        val categoryMap = mapOf(
+            Triple(PREF_CATEGORY_1, PREF_CATEGORY_1_NAME, "v1/api/danh-sach/phim-le", "Phim Lẻ Mới"),
+            Triple(PREF_CATEGORY_2, PREF_CATEGORY_2_NAME, "v1/api/quoc-gia/trung-quoc", "Phim Trung Quốc"),
+            Triple(PREF_CATEGORY_3, PREF_CATEGORY_3_NAME, "v1/api/quoc-gia/han-quoc", "Phim Hàn Quốc"),
+            Triple(PREF_CATEGORY_4, PREF_CATEGORY_4_NAME, "v1/api/danh-sach/hoat-hinh", "Phim Hoạt Hình"),
+            Triple(PREF_CATEGORY_5, PREF_CATEGORY_5_NAME, "", "Danh Sách 5"),
+            Triple(PREF_CATEGORY_6, PREF_CATEGORY_6_NAME, "", "Danh Sách 6")
+        )
+        
+        for ((pathKey, nameKey, defaultPath, defaultName) in categoryMap) {
+            val categoryPath = prefs.getString(pathKey, defaultPath).orEmpty()
+            if (categoryPath.isNotEmpty()) {
+                val categoryName = prefs.getString(nameKey, defaultName)
+                val categoryUrl = if (categoryPath.startsWith("http")) {
+                    categoryPath
+                } else {
+                    "$mainUrl/$categoryPath?page=$page"
+                }
+                categories.add(Pair(categoryUrl, categoryName))
+            }
+        }
+        
+        return categories
     }
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
