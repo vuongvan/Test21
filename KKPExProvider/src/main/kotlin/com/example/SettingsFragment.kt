@@ -47,35 +47,6 @@ class SettingsFragment(
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        // Username settings
-        val usernameLabel = TextView(ctx).apply {
-            text = "Tên đăng nhập:"
-            textSize = 14f
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setPadding(0, 16, 0, 8)
-        }
-
-        val usernameEdit = EditText(ctx).apply {
-            hint = "Nhập tên đăng nhập hoặc email"
-            setText(sharedPref.getString(KKPExProvider.PREF_USERNAME, ""))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
-        // Password settings
-        val passwordLabel = TextView(ctx).apply {
-            text = "Mật khẩu:"
-            textSize = 14f
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setPadding(0, 16, 0, 8)
-        }
-
-        val passwordEdit = EditText(ctx).apply {
-            hint = "Nhập mật khẩu"
-            setText(sharedPref.getString(KKPExProvider.PREF_PASSWORD, ""))
-            inputType = InputType.TYPE_TEXT_VARIATION_PASSWORD
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
         // Category settings
         val categoryTitleLabel = TextView(ctx).apply {
             text = "⚙️ Cài Đặt Danh Sách Phim"
@@ -85,15 +56,16 @@ class SettingsFragment(
         }
 
         val categoryDescLabel = TextView(ctx).apply {
-            text = "Nhập đường dẫn API sau domain, ví dụ: quoc-gia/trung-quoc, v1/api/phim-bo, v.v. Để trống để bỏ qua danh sách này."
+            text = "Nhập đường dẫn API sau domain. Ví dụ: quoc-gia/trung-quoc, v1/api/phim-bo, v.v. Để trống để bỏ qua danh sách này.\n\n3 danh sách đầu có giá trị mặc định: Phim Trung Quốc, Phim Hàn Quốc, Phim Hoạt Hình"
             textSize = 12f
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val categoryEdits = mutableListOf<EditText>()
+        val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         for (i in 1..6) {
             val categoryLabel = TextView(ctx).apply {
-                text = "Danh Sách $i:"
+                text = categoryNames[i - 1] + ":"
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setPadding(0, 12, 0, 8)
@@ -108,9 +80,16 @@ class SettingsFragment(
                 else -> KKPExProvider.PREF_CATEGORY_6
             }
 
+            val defaultValue = when (i) {
+                1 -> "quoc-gia/trung-quoc"
+                2 -> "quoc-gia/han-quoc"
+                3 -> "danh-sach/hoat-hinh"
+                else -> ""
+            }
+
             val categoryEdit = EditText(ctx).apply {
                 hint = "Ví dụ: quoc-gia/han-quoc hoặc v1/api/phim-le"
-                setText(sharedPref.getString(preKey, ""))
+                setText(sharedPref.getString(preKey, defaultValue))
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             }
 
@@ -128,24 +107,14 @@ class SettingsFragment(
             }
             setOnClickListener {
                 val domain = domainEdit.text.toString().trim()
-                val username = usernameEdit.text.toString().trim()
-                val password = passwordEdit.text.toString().trim()
                 
                 if (domain.isEmpty()) {
                     showToast("Domain không thể trống")
                     return@setOnClickListener
                 }
                 
-                if (username.isEmpty() || password.isEmpty()) {
-                    showToast("Tên đăng nhập và mật khẩu không thể trống")
-                    return@setOnClickListener
-                }
-                
                 sharedPref.edit().apply {
                     putString(KKPExProvider.PREF_DOMAIN, domain)
-                    putString(KKPExProvider.PREF_USERNAME, username)
-                    putString(KKPExProvider.PREF_PASSWORD, password)
-                    putBoolean(KKPExProvider.PREF_IS_LOGGED_IN, true)
                     // Save custom categories
                     putString(KKPExProvider.PREF_CATEGORY_1, categoryEdits.getOrNull(0)?.text.toString().trim())
                     putString(KKPExProvider.PREF_CATEGORY_2, categoryEdits.getOrNull(1)?.text.toString().trim())
@@ -178,10 +147,6 @@ class SettingsFragment(
             }
             setOnClickListener {
                 sharedPref.edit().apply {
-                    remove(KKPExProvider.PREF_DOMAIN)
-                    remove(KKPExProvider.PREF_USERNAME)
-                    remove(KKPExProvider.PREF_PASSWORD)
-                    remove(KKPExProvider.PREF_IS_LOGGED_IN)
                     remove(KKPExProvider.PREF_CATEGORY_1)
                     remove(KKPExProvider.PREF_CATEGORY_2)
                     remove(KKPExProvider.PREF_CATEGORY_3)
@@ -191,9 +156,12 @@ class SettingsFragment(
                     apply()
                 }
                 domainEdit.setText(KKPExProvider().mainUrl)
-                usernameEdit.setText("")
-                passwordEdit.setText("")
-                categoryEdits.forEach { it.setText("") }
+                categoryEdits[0].setText("quoc-gia/trung-quoc")
+                categoryEdits[1].setText("quoc-gia/han-quoc")
+                categoryEdits[2].setText("danh-sach/hoat-hinh")
+                categoryEdits[3].setText("")
+                categoryEdits[4].setText("")
+                categoryEdits[5].setText("")
                 showToast("Đã đặt lại thành mặc định")
                 AlertDialog.Builder(ctx)
                     .setTitle("Đặt Lại & Khởi Động Lại")
@@ -219,10 +187,6 @@ class SettingsFragment(
 
         layout.addView(domainLabel)
         layout.addView(domainEdit)
-        layout.addView(usernameLabel)
-        layout.addView(usernameEdit)
-        layout.addView(passwordLabel)
-        layout.addView(passwordEdit)
         layout.addView(categoryTitleLabel)
         layout.addView(categoryDescLabel)
         layout.addView(saveBtn)
