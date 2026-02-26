@@ -20,7 +20,7 @@ class BilibiliProvider : MainAPI() {
     override var mainUrl = "https://www.bilibili.tv"
     override var name = "BilibiliTV(Requires CS Prerelease)"
     override val hasMainPage = true
-    override var lang = "ta"
+    override var lang = "vi"
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.Anime,
@@ -48,7 +48,7 @@ class BilibiliProvider : MainAPI() {
         "Referer" to "$mainUrl/",
         "Origin" to mainUrl,
         "Accept" to "application/json, text/plain, */*",
-        "Accept-Language" to "en-US,en;q=0.9"
+        "Accept-Language" to "vi-VN,vi;q=0.9"
     )
 
     // Content access error types
@@ -103,8 +103,6 @@ class BilibiliProvider : MainAPI() {
         "search:fantasy" to "Fantasy",
         "search:adventure" to "Adventure",
         "search:isekai" to "Isekai",
-        "search:hindi" to "Hindi Dubbed",
-        "search:tagalog" to "Tagalog Dubbed",
     )
 
     override suspend fun getMainPage(
@@ -134,12 +132,12 @@ class BilibiliProvider : MainAPI() {
                             val aid = item.aid
                             
                             if (seasonId != null) {
-                                val href = "$mainUrl/en/play/$seasonId"
+                                val href = "$mainUrl/vi/play/$seasonId"
                                 home.add(newAnimeSearchResponse(title, href, TvType.Anime) {
                                     this.posterUrl = item.cover?.ensureHttps()
                                 })
                             } else if (aid != null) {
-                                val href = "$mainUrl/en/video/$aid"
+                                val href = "$mainUrl/vi/video/$aid"
                                 home.add(newMovieSearchResponse(title, href, TvType.Movie) {
                                     this.posterUrl = item.cover?.ensureHttps()
                                 })
@@ -160,7 +158,7 @@ class BilibiliProvider : MainAPI() {
                         day.cards?.forEach { card ->
                             val title = card.title ?: return@forEach
                             val seasonId = card.seasonId ?: return@forEach
-                            val href = "$mainUrl/en/play/$seasonId"
+                            val href = "$mainUrl/vi/play/$seasonId"
                             
                             home.add(newAnimeSearchResponse(title, href, TvType.Anime) {
                                 this.posterUrl = card.cover?.ensureHttps()
@@ -187,12 +185,12 @@ class BilibiliProvider : MainAPI() {
                             val aid = item.aid
                             
                             if (seasonId != null) {
-                                val href = "$mainUrl/en/play/$seasonId"
+                                val href = "$mainUrl/vi/play/$seasonId"
                                 home.add(newAnimeSearchResponse(title, href, TvType.Anime) {
                                     this.posterUrl = item.cover?.ensureHttps()
                                 })
                             } else if (aid != null) {
-                                val href = "$mainUrl/en/video/$aid"
+                                val href = "$mainUrl/vi/video/$aid"
                                 home.add(newMovieSearchResponse(title, href, TvType.Movie) {
                                     this.posterUrl = item.cover?.ensureHttps()
                                 })
@@ -212,7 +210,7 @@ class BilibiliProvider : MainAPI() {
                             val seasonId = item.seasonId
                             
                             if (seasonId != null) {
-                                val href = "$mainUrl/en/play/$seasonId"
+                                val href = "$mainUrl/vi/play/$seasonId"
                                 home.add(newAnimeSearchResponse(title, href, TvType.Anime) {
                                     this.posterUrl = item.cover?.ensureHttps()
                                 })
@@ -248,7 +246,7 @@ class BilibiliProvider : MainAPI() {
                         module.items?.forEach { item ->
                             val title = item.title ?: return@forEach
                             val seasonId = item.seasonId ?: return@forEach
-                            val href = "$mainUrl/en/play/$seasonId"
+                            val href = "$mainUrl/vi/play/$seasonId"
                             
                             results.add(newAnimeSearchResponse(title, href, TvType.Anime) {
                                 this.posterUrl = item.cover?.ensureHttps()
@@ -260,7 +258,7 @@ class BilibiliProvider : MainAPI() {
                         module.items?.forEach { item ->
                             val title = item.title ?: return@forEach
                             val aid = item.aid ?: return@forEach
-                            val href = "$mainUrl/en/video/$aid"
+                            val href = "$mainUrl/vi/video/$aid"
                             
                             results.add(newMovieSearchResponse(title, href, TvType.Movie) {
                                 this.posterUrl = item.cover?.ensureHttps()
@@ -443,8 +441,8 @@ class BilibiliProvider : MainAPI() {
             // Method 2: Try extracting from web page
             if (!foundVideo) {
                 val playerUrl = when {
-                    epId != null && seasonId != null -> "$mainUrl/en/play/$seasonId/$epId"
-                    aid != null -> "$mainUrl/en/video/$aid"
+                    epId != null && seasonId != null -> "$mainUrl/vi/play/$seasonId/$epId"
+                    aid != null -> "$mainUrl/vi/video/$aid"
                     else -> null
                 }
                 
@@ -473,8 +471,8 @@ class BilibiliProvider : MainAPI() {
             
             // Always provide web player as fallback option
             val playerUrl = when {
-                epId != null && seasonId != null -> "$mainUrl/en/play/$seasonId/$epId"
-                aid != null -> "$mainUrl/en/video/$aid"
+                epId != null && seasonId != null -> "$mainUrl/vi/play/$seasonId/$epId"
+                aid != null -> "$mainUrl/vi/video/$aid"
                 else -> null
             }
             
