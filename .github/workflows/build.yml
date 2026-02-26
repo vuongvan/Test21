@@ -12,6 +12,7 @@ on:
       - master
       - main
       - dev
+      - dev-bili
     paths-ignore:
       - '*.gd'
 
