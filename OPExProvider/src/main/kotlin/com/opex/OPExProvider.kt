@@ -112,37 +112,35 @@ class OPExProvider : MainAPI() {
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         
-        // 2. Logic lọc Status trong "Vùng an toàn" (từ origin_name đến thumb_url) và In hoa
+        // 2. Logic Status "Vùng an toàn" và In hoa
         val startAnchor = response.indexOf("\"origin_name\"")
         val endAnchor = response.indexOf("\"thumb_url\"")
         val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
             val safeZone = response.substring(startAnchor, endAnchor) 
             """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
         } else ""
-        
-        // In hoa chữ cái đầu (ví dụ: ongoing -> Ongoing)
         val statusFromApi = rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
         
-        // 3. Thông tin tập hiện tại và tiến độ
+        // 3. Tiến độ
         val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) "$epCurrent / $epTotal" else epCurrent
 
-        // 4. Điểm TMDB (định dạng 1 số thập phân)
+        // 4. Điểm TMDB
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val tmdbRating = rawRating?.toDoubleOrNull()?.let { "%.1f".format(it) } ?: "0.0"
 
-        // 5. FIX LẤY TẬP PHIM: Tách theo Server và gộp các tập trùng tên
+        // 5. FIX LỖI TẬP PHIM: Xử lý cụm tập "01-03", "04-06"
         val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
         serverBlocks.forEach { block ->
             val serverName = block.substringBefore("""",""").replace("\"", "")
-            // Regex quét Name (số tập) và Link M3U8 trong từng server block
-            val epDataRegex = """"name":"([^"]+)","slug":"[^"]+","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
+            // Cập nhật Regex để bắt "name" chính xác hơn từ JSON
+            val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
             
             epDataRegex.findAll(block).forEach { epMatch ->
-                val epName = epMatch.groupValues[1] 
+                val epName = epMatch.groupValues[1] // Lấy "01-03" hoặc "1"
                 val link = epMatch.groupValues[2].replace("\\/", "/")
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
                     epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
@@ -152,12 +150,15 @@ class OPExProvider : MainAPI() {
 
         val episodeList = epMap.map { (epName, links) ->
             newEpisode(links.joinToString(",")) {
-                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
-                this.episode = epName.toIntOrNull()
+                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else "Tập $epName"
+                
+                // Lấy số đầu tiên trong chuỗi làm số tập để sắp xếp (ví dụ: "01-03" lấy 1)
+                val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
+                this.episode = firstNum?.toIntOrNull()
             }
         }.sortedBy { it.episode }
 
-        // 6. Metadata Tags hiển thị ngang hàng (Tags)
+        // 6. Tags
         val metaTags = mutableListOf<String>()
         if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
         metaTags.add("⭐ $tmdbRating")
@@ -173,6 +174,7 @@ class OPExProvider : MainAPI() {
             this.tags = metaTags 
         }
     }
+
                 // --- FIX LỖI LẤY TẬP PHIM (Gộp tất cả Server và quét chính xác) ---
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
