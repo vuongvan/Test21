@@ -1,10 +1,11 @@
 package com.opex
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
-import com.fasterxml.jackson.annotation.JsonProperty
-import java.util.Locale
+import android.content.Context
 
 class OPExProvider : MainAPI() {
     override var mainUrl = "https://ophim1.com"
