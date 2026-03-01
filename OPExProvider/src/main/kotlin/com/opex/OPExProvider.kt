@@ -1,51 +1,12 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.util.Locale
-import android.content.Context
 
 class OPExProvider : MainAPI() {
-    companion object {
-        lateinit var ctx: Context
-        const val PREFS_NAME = "opex_provider_prefs"
-        const val PREF_DOMAIN = "domain"
-        const val PREF_CATEGORY_1 = "category_1"
-        const val PREF_CATEGORY_2 = "category_2"
-        const val PREF_CATEGORY_3 = "category_3"
-        const val PREF_CATEGORY_4 = "category_4"
-        const val PREF_CATEGORY_5 = "category_5"
-        const val PREF_CATEGORY_6 = "category_6"
-        const val PREF_CATEGORY_1_NAME = "category_1_name"
-        const val PREF_CATEGORY_2_NAME = "category_2_name"
-        const val PREF_CATEGORY_3_NAME = "category_3_name"
-        const val PREF_CATEGORY_4_NAME = "category_4_name"
-        const val PREF_CATEGORY_5_NAME = "category_5_name"
-        const val PREF_CATEGORY_6_NAME = "category_6_name"
-
-        fun getPreferenceKey(i: Int): String = when (i) {
-            1 -> PREF_CATEGORY_1
-            2 -> PREF_CATEGORY_2
-            3 -> PREF_CATEGORY_3
-            4 -> PREF_CATEGORY_4
-            5 -> PREF_CATEGORY_5
-            6 -> PREF_CATEGORY_6
-            else -> PREF_CATEGORY_1
-        }
-
-        fun getPreferenceNameKey(i: Int): String = when (i) {
-            1 -> PREF_CATEGORY_1_NAME
-            2 -> PREF_CATEGORY_2_NAME
-            3 -> PREF_CATEGORY_3_NAME
-            4 -> PREF_CATEGORY_4_NAME
-            5 -> PREF_CATEGORY_5_NAME
-            6 -> PREF_CATEGORY_6_NAME
-            else -> PREF_CATEGORY_1_NAME
-        }
-    }
     override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
     override val hasMainPage = true
@@ -56,37 +17,14 @@ class OPExProvider : MainAPI() {
     private val imgDomain = "https://img.ophim.live/uploads/movies/"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = getCustomCategories(page)
+        val items = listOf(
+            Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"),
+            Pair("$mainUrl/v1/api/danh-sach/phim-le?page=$page", "Phim Lẻ Mới"),
+            Pair("$mainUrl/v1/api/quoc-gia/trung-quoc?page=$page", "Phim Trung Quốc"),
+            Pair("$mainUrl/v1/api/quoc-gia/han-quoc?page=$page", "Phim Hàn Quốc"),
+            Pair("$mainUrl/v1/api/danh-sach/hoat-hinh?page=$page", "Phim Hoạt Hình")
+        )
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
-    }
-
-    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
-        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val categories = mutableListOf<Pair<String, String>>()
-        
-        // Default category
-        categories.add(Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"))
-        
-        // Parallel lists for category configuration
-        val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
-        val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
-        val defaultPaths = listOf("v1/api/danh-sach/phim-le", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
-        val defaultNames = listOf("Phim Lẻ Mới", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
-        
-        for (i in 0 until 6) {
-            val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
-            if (categoryPath.isNotEmpty()) {
-                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
-                val categoryUrl = if (categoryPath.startsWith("http")) {
-                    categoryPath
-                } else {
-                    "$mainUrl/$categoryPath?page=$page"
-                }
-                categories.add(Pair(categoryUrl, categoryName))
-            }
-        }
-        
-        return categories
     }
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
@@ -111,57 +49,54 @@ class OPExProvider : MainAPI() {
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         
-        // --- LOGIC LỌC STATUS TRONG VÙNG AN TOÀN ---
+        // --- GIỮ NGUYÊN LOGIC STATUS IN HOA TRONG VÙNG AN TOÀN ---
         val startAnchor = response.indexOf("\"origin_name\"")
         val endAnchor = response.indexOf("\"thumb_url\"")
-        
         val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
             val safeZone = response.substring(startAnchor, endAnchor) 
             """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
         } else ""
-
         val statusFromApi = rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
         
         val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        
-        val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
-            "$epCurrent / $epTotal" 
-        } else {
-            epCurrent 
-        }
+        val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) "$epCurrent / $epTotal" else epCurrent
 
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
-        val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
-        val tmdbRating = "%.1f".format(ratingValue)
+        val tmdbRating = rawRating?.toDoubleOrNull()?.let { "%.1f".format(it) } ?: "0.0"
 
+        // --- CẬP NHẬT LOGIC LẤY TẬP PHIM (FIX PHIM BÁCH LUYỆN THÀNH THẦN) ---
         val epMap = mutableMapOf<String, MutableList<String>>() 
+        // Tách chuỗi theo từng server để không bỏ lỡ tập nào
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
         serverBlocks.forEach { block ->
             val serverName = block.substringBefore("""",""").replace("\"", "")
-            val epDataRegex = """"slug":"([^"]+)","filename".*?"link_m3u8":"([^"]+)"""".toRegex()
+            // Regex này sẽ quét qua toàn bộ server_data của từng server
+            val epDataRegex = """"name":"([^"]+)","slug":"([^"]+)","filename".*?"link_m3u8":"([^"]+)"""".toRegex()
             
             epDataRegex.findAll(block).forEach { epMatch ->
-                val epNum = epMatch.groupValues[1]
-                val link = epMatch.groupValues[2].replace("\\/", "/")
-                if (epNum.isNotEmpty() && link.isNotEmpty()) {
-                    epMap.getOrPut(epNum) { mutableListOf() }.add("$link|$serverName")
+                val epName = epMatch.groupValues[1] // Số tập (1, 2, 3...)
+                val link = epMatch.groupValues[3].replace("\\/", "/")
+                if (epName.isNotEmpty() && link.isNotEmpty()) {
+                    // Gom link vào cùng 1 tập dựa trên tên tập (epName)
+                    epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
             }
         }
 
-        val episodeList = epMap.map { (epNum, links) ->
+        val episodeList = epMap.map { (epName, links) ->
             newEpisode(links.joinToString(",")) {
-                this.name = if (epNum.all { it.isDigit() }) "Tập $epNum" else epNum
-                this.episode = epNum.toIntOrNull()
+                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
+                this.episode = epName.toIntOrNull()
             }
         }.sortedBy { it.episode }
 
+        // --- GIỮ NGUYÊN TAGS VÀ METADATA ---
         val metaTags = mutableListOf<String>()
         if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
+        metaTags.add("⭐ $tmdbRating")
         if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
-        if (tmdbRating != "0.0") metaTags.add("★ $tmdbRating")
 
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
@@ -170,13 +105,7 @@ class OPExProvider : MainAPI() {
             this.posterUrl = poster
             this.plot = plotClean
             this.year = movieYear
-            this.tags = metaTags
-            // Set status to metadata
-            this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
-            // Add rating to metadata
-            if (ratingValue > 0) {
-                this.score = Score.from10(ratingValue)
-            }
+            this.tags = metaTags 
         }
     }
 
@@ -197,14 +126,5 @@ data class OPListResponse(
     @field:JsonProperty("items") val items: List<OPItem>? = null, 
     @field:JsonProperty("data") val data: OPListData? = null
 )
-
-data class OPListData(
-    @field:JsonProperty("items") val items: List<OPItem>? = null
-)
-
-data class OPItem(
-    @field:JsonProperty("name") val name: String? = null,
-    @field:JsonProperty("slug") val slug: String? = null,
-    @field:JsonProperty("poster_url") val poster_url: String? = null,
-    @field:JsonProperty("thumb_url") val thumb_url: String? = null
-)
+data class OPListData(val items: List<OPItem>?)
+data class OPItem(val name: String?, val slug: String?, val poster_url: String?, val thumb_url: String?)
