@@ -135,7 +135,6 @@ class OPExProvider : MainAPI() {
         val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
         val tmdbRating = "%.1f".format(ratingValue)
 
-        val epMap = mutableMapOf<String, MutableList<String>>() 
         // 5. FIX LỖI TẬP PHIM: Xử lý cụm tập "01-03", "04-06"
         val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
@@ -167,7 +166,7 @@ class OPExProvider : MainAPI() {
         val metaTags = mutableListOf<String>()
         if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
         if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
-        if (tmdbRating != "0.0") metaTags.add("★ $tmdbRating")
+        if (tmdbRating > 0) metaTags.add("★ $tmdbRating")
 
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
