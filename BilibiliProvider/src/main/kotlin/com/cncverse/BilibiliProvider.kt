@@ -1066,7 +1066,7 @@ class BilibiliProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
         try {
-            val subtitleUrl = "$WEB_API/subtitle?ep_id=$epId&platform=web&s_locale=en_US"
+            val subtitleUrl = "$WEB_API/subtitle?ep_id=$epId&platform=web&s_locale=vi_VN"
             val response = app.get(subtitleUrl, headers = headers).text
             val json = parseJson<BiliSubtitleResponse>(response)
             

@@ -56,7 +56,7 @@ class SettingsActivity : Activity() {
 
         val categoryEdits = mutableListOf<EditText>()
         val categoryNameEdits = mutableListOf<EditText>()
-        val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+        val categoryNames = listOf("Danh sách 1", "Danh sách 2", "Danh sách 3", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         for (i in 1..6) {
             val categoryLabel = TextView(this).apply {
                 text = categoryNames[i - 1] + ":"
