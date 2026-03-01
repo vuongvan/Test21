@@ -1,13 +1,51 @@
 package com.opex
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.fasterxml.jackson.annotation.JsonProperty
+import java.util.Locale
 import android.content.Context
 
 class OPExProvider : MainAPI() {
+    companion object {
+        lateinit var ctx: Context
+        const val PREFS_NAME = "opex_provider_prefs"
+        const val PREF_DOMAIN = "domain"
+        const val PREF_CATEGORY_1 = "category_1"
+        const val PREF_CATEGORY_2 = "category_2"
+        const val PREF_CATEGORY_3 = "category_3"
+        const val PREF_CATEGORY_4 = "category_4"
+        const val PREF_CATEGORY_5 = "category_5"
+        const val PREF_CATEGORY_6 = "category_6"
+        const val PREF_CATEGORY_1_NAME = "category_1_name"
+        const val PREF_CATEGORY_2_NAME = "category_2_name"
+        const val PREF_CATEGORY_3_NAME = "category_3_name"
+        const val PREF_CATEGORY_4_NAME = "category_4_name"
+        const val PREF_CATEGORY_5_NAME = "category_5_name"
+        const val PREF_CATEGORY_6_NAME = "category_6_name"
+
+        fun getPreferenceKey(i: Int): String = when (i) {
+            1 -> PREF_CATEGORY_1
+            2 -> PREF_CATEGORY_2
+            3 -> PREF_CATEGORY_3
+            4 -> PREF_CATEGORY_4
+            5 -> PREF_CATEGORY_5
+            6 -> PREF_CATEGORY_6
+            else -> PREF_CATEGORY_1
+        }
+
+        fun getPreferenceNameKey(i: Int): String = when (i) {
+            1 -> PREF_CATEGORY_1_NAME
+            2 -> PREF_CATEGORY_2_NAME
+            3 -> PREF_CATEGORY_3_NAME
+            4 -> PREF_CATEGORY_4_NAME
+            5 -> PREF_CATEGORY_5_NAME
+            6 -> PREF_CATEGORY_6_NAME
+            else -> PREF_CATEGORY_1_NAME
+        }
+    }
     override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
     override val hasMainPage = true
@@ -18,14 +56,37 @@ class OPExProvider : MainAPI() {
     private val imgDomain = "https://img.ophim.live/uploads/movies/"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = listOf(
-            Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"),
-            Pair("$mainUrl/v1/api/danh-sach/phim-le?page=$page", "Phim Lẻ Mới"),
-            Pair("$mainUrl/v1/api/quoc-gia/trung-quoc?page=$page", "Phim Trung Quốc"),
-            Pair("$mainUrl/v1/api/quoc-gia/han-quoc?page=$page", "Phim Hàn Quốc"),
-            Pair("$mainUrl/v1/api/danh-sach/hoat-hinh?page=$page", "Phim Hoạt Hình")
-        )
+        val items = getCustomCategories(page)
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
+    }
+
+    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val categories = mutableListOf<Pair<String, String>>()
+        
+        // Default category
+        categories.add(Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"))
+        
+        // Parallel lists for category configuration
+        val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
+        val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
+        val defaultPaths = listOf("v1/api/danh-sach/phim-le", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
+        val defaultNames = listOf("Phim Lẻ Mới", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+        
+        for (i in 0 until 6) {
+            val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
+            if (categoryPath.isNotEmpty()) {
+                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
+                val categoryUrl = if (categoryPath.startsWith("http")) {
+                    categoryPath
+                } else {
+                    "$mainUrl/$categoryPath?page=$page"
+                }
+                categories.add(Pair(categoryUrl, categoryName))
+            }
+        }
+        
+        return categories
     }
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
@@ -45,42 +106,45 @@ class OPExProvider : MainAPI() {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
         
+        // 1. Bóc tách Metadata cơ bản
         val movieName = """"name":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
         val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         
-        // --- GIỮ NGUYÊN LOGIC STATUS IN HOA TRONG VÙNG AN TOÀN ---
+        // 2. Logic lọc Status trong "Vùng an toàn" (từ origin_name đến thumb_url) và In hoa
         val startAnchor = response.indexOf("\"origin_name\"")
         val endAnchor = response.indexOf("\"thumb_url\"")
         val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
             val safeZone = response.substring(startAnchor, endAnchor) 
             """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
         } else ""
+        
+        // In hoa chữ cái đầu (ví dụ: ongoing -> Ongoing)
         val statusFromApi = rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
         
+        // 3. Thông tin tập hiện tại và tiến độ
         val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) "$epCurrent / $epTotal" else epCurrent
 
+        // 4. Điểm TMDB (định dạng 1 số thập phân)
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val tmdbRating = rawRating?.toDoubleOrNull()?.let { "%.1f".format(it) } ?: "0.0"
 
-        // --- CẬP NHẬT LOGIC LẤY TẬP PHIM (FIX PHIM BÁCH LUYỆN THÀNH THẦN) ---
+        // 5. FIX LẤY TẬP PHIM: Tách theo Server và gộp các tập trùng tên
         val epMap = mutableMapOf<String, MutableList<String>>() 
-        // Tách chuỗi theo từng server để không bỏ lỡ tập nào
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
         serverBlocks.forEach { block ->
             val serverName = block.substringBefore("""",""").replace("\"", "")
-            // Regex này sẽ quét qua toàn bộ server_data của từng server
-            val epDataRegex = """"name":"([^"]+)","slug":"([^"]+)","filename".*?"link_m3u8":"([^"]+)"""".toRegex()
+            // Regex quét Name (số tập) và Link M3U8 trong từng server block
+            val epDataRegex = """"name":"([^"]+)","slug":"[^"]+","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
             
             epDataRegex.findAll(block).forEach { epMatch ->
-                val epName = epMatch.groupValues[1] // Số tập (1, 2, 3...)
-                val link = epMatch.groupValues[3].replace("\\/", "/")
+                val epName = epMatch.groupValues[1] 
+                val link = epMatch.groupValues[2].replace("\\/", "/")
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
-                    // Gom link vào cùng 1 tập dựa trên tên tập (epName)
                     epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
             }
@@ -93,7 +157,7 @@ class OPExProvider : MainAPI() {
             }
         }.sortedBy { it.episode }
 
-        // --- GIỮ NGUYÊN TAGS VÀ METADATA ---
+        // 6. Metadata Tags hiển thị ngang hàng (Tags)
         val metaTags = mutableListOf<String>()
         if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
         metaTags.add("⭐ $tmdbRating")
@@ -109,7 +173,7 @@ class OPExProvider : MainAPI() {
             this.tags = metaTags 
         }
     }
-
+                // --- FIX LỖI LẤY TẬP PHIM (Gộp tất cả Server và quét chính xác) ---
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
             val parts = info.split("|")
@@ -127,5 +191,14 @@ data class OPListResponse(
     @field:JsonProperty("items") val items: List<OPItem>? = null, 
     @field:JsonProperty("data") val data: OPListData? = null
 )
-data class OPListData(val items: List<OPItem>?)
-data class OPItem(val name: String?, val slug: String?, val poster_url: String?, val thumb_url: String?)
+
+data class OPListData(
+    @field:JsonProperty("items") val items: List<OPItem>? = null
+)
+
+data class OPItem(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("slug") val slug: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+)
