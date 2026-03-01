@@ -11,7 +11,7 @@ on:
       # choose your default branch
       - master
       - main
-      - dev
+      - gem
       - dev-bili
     paths-ignore:
       - '*.gd'
