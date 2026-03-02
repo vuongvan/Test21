@@ -1,0 +1,63 @@
+[
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.dailymotion.com&sz=%size%",
+        "fileHash": "sha256-5c4a1b996500080d80b73b6cccc0035b09b22929c830dee92e06227d9fc063f8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/vuongvan/Test21",
+        "fileSize": 26757,
+        "status": 1,
+        "authors": [
+            "Luna712"
+        ],
+        "tvTypes": [
+            "Others"
+        ],
+        "version": 10,
+        "internalName": "DailymotionProvider",
+        "description": "Watch content from Dailymotion",
+        "url": "https://raw.githubusercontent.com/vuongvan/Test21/builds/DailymotionProvider.cs3",
+        "name": "DailymotionProvider"
+    },
+    {
+        "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Korduene_Logo.png",
+        "fileHash": "sha256-bed3d7112ed2d036b6c355d9ffc7e4cb625277f517edb02fe5baeda0ead25bea",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/vuongvan/Test21",
+        "fileSize": 64919,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "VM",
+            "Gemini"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 14,
+        "internalName": "KKPExProvider",
+        "description": "Movies",
+        "url": "https://raw.githubusercontent.com/vuongvan/Test21/builds/KKPExProvider.cs3",
+        "name": "KKPExProvider"
+    },
+    {
+        "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Korduene_Logo.png",
+        "fileHash": "sha256-8eccd4a99c6f9d17bb28817204b19cc1c8e265004204dc7a6ec916b19d3db6f6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/vuongvan/Test21",
+        "fileSize": 63074,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "VM",
+            "Gemini"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 16,
+        "internalName": "OPExProvider",
+        "description": "Movies",
+        "url": "https://raw.githubusercontent.com/vuongvan/Test21/builds/OPExProvider.cs3",
+        "name": "OPExProvider"
+    }
+]
