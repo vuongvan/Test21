@@ -32,7 +32,13 @@ jobs:
           path: "builds"
       
       - name: Clean old builds
-        run: rm $GITHUB_WORKSPACE/builds/*.cs3
+        run: |
+          if ls $GITHUB_WORKSPACE/builds/*.cs3 1> /dev/null 2>&1; then
+            echo "Found old builds, cleaning up..."
+            rm $GITHUB_WORKSPACE/builds/*.cs3
+          else
+            echo "No .cs3 files found. Skipping."
+          fi
 
       - name: Setup JDK 17
         uses: actions/setup-java@v1
