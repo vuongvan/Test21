@@ -171,7 +171,11 @@ class OPExProvider : MainAPI() {
 
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
-
+        // Lấy danh sách thể loại (Ví dụ: Viễn Tưởng, Khoa Học)
+        val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
+            metaTags.add(it.groupValues[1]) 
+        }
         return newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
             this.posterUrl = poster
             this.plot = plotClean
