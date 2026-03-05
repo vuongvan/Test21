@@ -141,11 +141,9 @@ class KKPExProvider : MainAPI() {
         }
 
         // 3. Tag Chất lượng
-        movie.quality?.let { movieTags.add(it) }
+        // movie.quality?.let { movieTags.add(it) }
 
         val fullPlot = """
-            Diễn viên: ${movie.actor?.joinToString(", ") ?: "Đang cập nhật"}
-            
             ${movie.content ?: "Không có nội dung mô tả."}
         """.trimIndent()
 
