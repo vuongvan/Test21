@@ -113,7 +113,7 @@ class KKPExProvider : MainAPI() {
         // FIX LỖI GOM NHÓM TẬP: Chỉ lấy số đầu tiên tìm thấy trong tên tập
         val episodesList = episodeMap.map { (epName, links) ->
             newEpisode(links.joinToString("|||")) {
-                this.name = "Tập $epName"
+                this.name = "$epName"
                 val s = Regex("""(\d+)""").find(epName)?.value
                 this.episode = s?.toIntOrNull()
             }
