@@ -172,7 +172,7 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
+                
                 // Add rating to metadata
                 val scoreValue = movie.tmdb?.vote_average
                 if (scoreValue != null && scoreValue > 0) {
