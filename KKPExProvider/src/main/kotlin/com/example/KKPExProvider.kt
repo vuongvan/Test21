@@ -147,7 +147,15 @@ class KKPExProvider : MainAPI() {
                 movieTags.add("Tập $tagEp")
             }
         }
-
+        // 2. KIỂM TRA NGÔN NGỮ (Lồng Tiếng / Thuyết Minh)
+        movie.lang?.let { lang ->
+            when {
+                //lang.contains("Lồng Tiếng", ignoreCase = true) -> movieTags.add("Lồng Tiếng")
+                //lang.contains("Thuyết Minh", ignoreCase = true) -> movieTags.add("Thuyết Minh")
+                // Nếu bạn muốn hiện cả "Vietsub + Thuyết Minh" thì dùng movieTags.add(lang)
+                movieTags.add(lang)
+            }
+        }
         // 3. Tag Chất lượng
         // movie.quality?.let { movieTags.add(it) }
         // 4. THÊM CATEGORY VÀO TAGS
@@ -255,6 +263,7 @@ data class KKMovie(
     @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
     @param:JsonProperty("category") val category: List<KKCategory>? = null,
     @param:JsonProperty("country") val country: List<KKCountry>? = null
+    @param:JsonProperty("lang") val lang: String? = null, // Trường này nhận giá trị "Lồng Tiếng"
 )
 
 data class KKCategory(@param:JsonProperty("name") val name: String? = null)
