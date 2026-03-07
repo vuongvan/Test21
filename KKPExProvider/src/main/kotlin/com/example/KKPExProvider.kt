@@ -122,7 +122,7 @@ class KKPExProvider : MainAPI() {
 
         val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
         val movieTags = mutableListOf<String>()
-        val isSeries = movie.type == "series" || movie.type == "hoathinh" || episodesList.size > 1
+        val isSeries = (movie.type == "series" || movie.type == "hoathinh") && episodesList.size > 1
         
         // 1. Tag Trạng thái: Ongoing / Completed
         if (isSeries) {
