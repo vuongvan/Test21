@@ -128,7 +128,7 @@ class KKPExProvider : MainAPI() {
         if (isSeries) {
             // Tag Trạng thái: Ongoing / Completed
             val isCompleted = movie.status == "completed"
-            movieTags.add(if (isCompleted) "Completed" else "Ongoing")
+            //movieTags.add(if (isCompleted) "Completed" else "Ongoing")
 
             // Tag Số tập hiện tại (Ví dụ: Tập 5/16)
             val totalEpisodes = movie.episode_total ?: ""
