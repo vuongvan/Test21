@@ -205,24 +205,26 @@ data class LoginResponse(
 )
 
 // --- DATA MODELS ---
+// --- DATA MODELS (ĐÃ FIX LỖI REDECLARATION) ---
+
 data class KKListResponse(
-    @field:JsonProperty("items") val items: List<KKItem>? = null,
-    @field:JsonProperty("data") val data: KKListData? = null
+    @param:JsonProperty("items") val items: List<KKItem>? = null, 
+    @param:JsonProperty("data") val data: KKListData? = null
 )
 
 data class KKItem(
-    @field:JsonProperty("name") val name: String? = null,
-    @field:JsonProperty("slug") val slug: String? = null,
-    @field:JsonProperty("poster_url") val poster_url: String? = null,
-    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("slug") val slug: String? = null, 
+    @param:JsonProperty("poster_url") val poster_url: String? = null, 
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null
 )
 
 data class KKSearchResponse(
-    @field:JsonProperty("data") val data: KKListData? = null
+    @param:JsonProperty("data") val data: KKListData? = null
 )
 
 data class KKListData(
-    @field:JsonProperty("items") val items: List<KKItem>? = null
+    @param:JsonProperty("items") val items: List<KKItem>? = null
 )
 
 data class KKDetailResponse(
@@ -243,26 +245,20 @@ data class KKMovie(
     @param:JsonProperty("quality") val quality: String? = null,
     @param:JsonProperty("actor") val actor: List<String>? = null,
     @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
-    // Cần thêm 2 dòng này để sửa lỗi biên dịch
     @param:JsonProperty("category") val category: List<KKCategory>? = null,
     @param:JsonProperty("country") val country: List<KKCountry>? = null
 )
 
-// Khai báo cấu trúc của Category và Country
 data class KKCategory(@param:JsonProperty("name") val name: String? = null)
 data class KKCountry(@param:JsonProperty("name") val name: String? = null)
-
 data class KKTMDB(@param:JsonProperty("vote_average") val vote_average: Double? = null)
-data class KKServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<KKEpisode>? = null)
-data class KKEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
-
 
 data class KKServer(
-    @field:JsonProperty("server_name") val server_name: String? = null,
-    @field:JsonProperty("server_data") val server_data: List<KKEpisode>? = null
+    @param:JsonProperty("server_name") val server_name: String? = null, 
+    @param:JsonProperty("server_data") val server_data: List<KKEpisode>? = null
 )
 
 data class KKEpisode(
-    @field:JsonProperty("name") val name: String? = null,
-    @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
