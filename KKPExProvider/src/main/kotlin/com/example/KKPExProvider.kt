@@ -142,7 +142,10 @@ class KKPExProvider : MainAPI() {
 
         // 3. Tag Chất lượng
         // movie.quality?.let { movieTags.add(it) }
-
+        // 4. THÊM CATEGORY VÀO TAGS
+        movie.category?.forEach { cat ->
+            cat.name?.let { movieTags.add(it) }
+        }
         val fullPlot = """
             ${movie.content ?: "Không có nội dung mô tả."}
         """.trimIndent()
