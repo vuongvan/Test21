@@ -149,11 +149,10 @@ class KKPExProvider : MainAPI() {
         }
         // 2. KIỂM TRA NGÔN NGỮ (Lồng Tiếng / Thuyết Minh)
         movie.lang?.let { lang ->
-            when {
-                //lang.contains("Lồng Tiếng", ignoreCase = true) -> movieTags.add("Lồng Tiếng")
-                //lang.contains("Thuyết Minh", ignoreCase = true) -> movieTags.add("Thuyết Minh")
-                // Nếu bạn muốn hiện cả "Vietsub + Thuyết Minh" thì dùng movieTags.add(lang)
-                movieTags.add(lang)
+            if (lang.contains("Thuyết Minh", ignoreCase = true)) {
+                movieTags.add("Thuyết Minh")
+            } else if (lang.contains("Lồng Tiếng", ignoreCase = true)) {
+                movieTags.add("Lồng Tiếng")
             }
         }
         // 3. Tag Chất lượng
