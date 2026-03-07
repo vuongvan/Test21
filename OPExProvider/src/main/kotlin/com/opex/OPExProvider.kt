@@ -103,26 +103,24 @@ class OPExProvider : MainAPI() {
     }
 
     
+    
+        
+
     override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
         
-        // 1. Bóc tách Metadata cơ bản
+        // 1. Lấy thông tin cơ bản
         val movieName = """"name":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
         val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         
-        // --- PHÂN BIỆT PHIM LẺ VÀ PHIM BỘ ---
-        // Lấy @type từ seoSchema (ví dụ: "TvSeries", "Movie") hoặc "type" từ data phim ("single", "series")
-        val schemaType = """"@type":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1)
-        val apiType = """"type":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1)
-        
-        // Nếu là "Movie" hoặc "single" thì là Phim Lẻ, ngược lại là Phim Bộ
-        val isMovie = schemaType.equals("Movie", ignoreCase = true) || apiType.equals("single", ignoreCase = true)
+        // 2. Nhận diện Phim Lẻ hay Phim Bộ (Dựa trên "type" hoặc "@type" của API)
+        val isMovie = response.contains(""""type":"single"""") || response.contains(""""@type":"Movie"""")
         val tvType = if (isMovie) TvType.Movie else TvType.TvSeries
 
-        // 2. Logic Status và Tiến độ
+        // 3. Tiến độ & Trạng thái
         val startAnchor = response.indexOf("\"origin_name\"")
         val endAnchor = response.indexOf("\"thumb_url\"")
         val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
@@ -135,79 +133,100 @@ class OPExProvider : MainAPI() {
         val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) "$epCurrent / $epTotal" else epCurrent
 
-        // 3. Xử lý điểm đánh giá (Ẩn nếu bằng 0.0)
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val ratingDouble = rawRating?.toDoubleOrNull() ?: 0.0
         val tmdbRating = if (ratingDouble > 0.0) "⭐ ${"%.1f".format(ratingDouble)}" else null
 
-        // 4. Bổ sung Categories và Country vào Tags
+        // 4. Bóc tách Thể loại & Quốc gia vào Tags
         val metaTags = mutableListOf<String>()
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
-            metaTags.add(it.groupValues[1]) 
-        }
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
         val countries = """"country":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(countries ?: "").forEach { 
-            metaTags.add(it.groupValues[1]) 
-        }
+        """"name":"([^"]+)"""".toRegex().findAll(countries ?: "").forEach { metaTags.add(it.groupValues[1]) }
 
         if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
         if (tmdbRating != null) metaTags.add(tmdbRating)
-        if (displayProgress.isNotEmpty() && !isMovie) metaTags.add(displayProgress) // Chỉ hiện tiến độ nếu là Phim Bộ
+        if (displayProgress.isNotEmpty() && !isMovie) metaTags.add(displayProgress) // Chỉ hiện tiến độ nếu không phải phim lẻ
 
-        // 5. Fix tập phim và Phân nhóm Sub/Dub
-        val episodeList = mutableListOf<Episode>()
+        val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
+        val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
+
+        // 5. Lấy danh sách tập (Gộp toàn bộ server thành 1 cục, BỎ QUA Sub/Dub Group)
+        val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
         serverBlocks.forEach { block ->
             val serverName = block.substringBefore("""","""").replace("\"", "")
-            val groupName = when {
-                serverName.contains("Thuyết Minh", ignoreCase = true) -> "Dub (Thuyết Minh)"
-                serverName.contains("Vietsub", ignoreCase = true) -> "Sub (Phụ Đề)"
-                else -> serverName
-            }
-
             val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
             
             epDataRegex.findAll(block).forEach { epMatch ->
                 val epName = epMatch.groupValues[1] 
                 val link = epMatch.groupValues[2].replace("\\/", "/")
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
-                    val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
-                    
-                    val episodeObj = newEpisode(link) {
-                        // Nếu là phim lẻ, thường chỉ có chữ "Full", ta giữ nguyên hoặc đặt tên gọn lại
-                        this.name = if (isMovie && !epName.any { it.isDigit() }) epName else "Tập $epName"
-                        this.episode = firstNum?.toIntOrNull()
-                    }
-                    episodeObj.episodeGroup = groupName 
-                    episodeList.add(episodeObj)
+                    // Cấu trúc lưu: "link.m3u8|Vietsub #1"
+                    epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
             }
         }
 
-        val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
-        val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
+        // 6. Quyết định giao diện trả về
+        if (isMovie && epMap.size <= 1) {
+            // Trường hợp 1: Là Phim Lẻ và chỉ có 1 tập duy nhất ("Full")
+            // Trả về newMovieLoadResponse -> Giao diện hiện Nút Play lớn, không có list tập rườm rà.
+            val movieLinks = epMap.values.flatten().joinToString(",")
+            return newMovieLoadResponse(movieName, url, TvType.Movie, movieLinks) {
+                this.posterUrl = poster
+                this.plot = plotClean
+                this.year = movieYear
+                this.tags = metaTags
+            }
+        } else {
+            // Trường hợp 2: Là Phim Bộ HOẶC Phim Lẻ nhưng có nhiều phần (Tập 1, Tập 2)
+            // Trả về newTvSeriesLoadResponse -> Giao diện hiện danh sách tập
+            val episodeList = epMap.map { (epName, links) ->
+                newEpisode(links.joinToString(",")) {
+                    this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
+                    val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
+                    this.episode = firstNum?.toIntOrNull()
+                }
+            }.sortedBy { it.episode }
 
-        // 6. Trả về TvSeriesLoadResponse nhưng truyền tham số tvType linh hoạt (Movie hoặc TvSeries)
-        return newTvSeriesLoadResponse(movieName, url, tvType, episodeList.sortedBy { it.episode }) {
-            this.posterUrl = poster
-            this.plot = plotClean
-            this.year = movieYear
-            this.tags = metaTags 
+            return newTvSeriesLoadResponse(movieName, url, tvType, episodeList) {
+                this.posterUrl = poster
+                this.plot = plotClean
+                this.year = movieYear
+                this.tags = metaTags 
+            }
         }
     }
 
-
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        // Biến 'data' lúc này chứa danh sách các server ngăn cách bởi dấu phẩy
         data.split(",").forEach { info ->
             val parts = info.split("|")
             val link = parts.getOrNull(0) ?: ""
-            val name = parts.getOrNull(1) ?: "OPhim"
-            if (link.isNotEmpty()) callback.invoke(newExtractorLink(name, name, link, ExtractorLinkType.M3U8))
+            val name = parts.getOrNull(1) ?: "OPhim" // Tên nguồn (VD: Vietsub #1)
+
+            if (link.isNotEmpty()) {
+                callback.invoke(
+                    // Hàm nhận đúng 4 tham số để tránh lỗi Too many arguments
+                    newExtractorLink(
+                        name, 
+                        name, 
+                        link, 
+                        ExtractorLinkType.M3U8 
+                    )
+                )
+            }
         }
         return true
     }
+    
 
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
