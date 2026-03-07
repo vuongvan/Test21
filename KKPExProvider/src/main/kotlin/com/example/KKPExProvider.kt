@@ -122,23 +122,30 @@ class KKPExProvider : MainAPI() {
 
         val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
         val movieTags = mutableListOf<String>()
+        val isSeries = movie.type == "series" || movie.type == "hoathinh" || episodesList.size > 1
         
         // 1. Tag Trạng thái: Ongoing / Completed
-        val isCompleted = movie.status == "completed"
-        movieTags.add(if (isCompleted) "Completed" else "Ongoing")
+        if (isSeries) {
+            // Tag Trạng thái: Ongoing / Completed
+            val isCompleted = movie.status == "completed"
+            movieTags.add(if (isCompleted) "Completed" else "Ongoing")
 
-        // 2. Tag Tập phim: Hiển thị dạng 5/16 cho phim Ongoing
-        val totalEpisodes = movie.episode_total ?: ""
-        movie.episode_current?.let { current ->
-            val tagEp = when {
-                current.contains("Full", ignoreCase = true) -> "Full"
-                !isCompleted && totalEpisodes.isNotEmpty() && !current.contains("/") -> {
-                    "${episodesList.size}/$totalEpisodes"
+            // Tag Số tập hiện tại (Ví dụ: Tập 5/16)
+            val totalEpisodes = movie.episode_total ?: ""
+            movie.episode_current?.let { current ->
+                val tagEp = when {
+                    current.contains("Full", ignoreCase = true) -> "Full"
+                    // Nếu đang chiếu và có tổng số tập -> Hiện dạng X/Y
+                    !isCompleted && totalEpisodes.isNotEmpty() && !current.contains("/") -> {
+                        "${episodesList.size}/$totalEpisodes"
+                    }
+                    // Trích xuất số tập từ dấu ngoặc nếu có (ví dụ: Tập 1 (128))
+                    current.contains("(") -> current.substringAfter("(").substringBefore(")")
+                    // Mặc định xóa chữ "Tập " để nhãn gọn hơn
+                    else -> current.replace("Tập ", "")
                 }
-                current.contains("(") -> current.substringAfter("(").substringBefore(")")
-                else -> current.replace("Tập ", "")
+                movieTags.add("Tập $tagEp")
             }
-            movieTags.add("Tập $tagEp")
         }
 
         // 3. Tag Chất lượng
@@ -151,9 +158,7 @@ class KKPExProvider : MainAPI() {
             ${movie.content ?: "Không có nội dung mô tả."}
         """.trimIndent()
 
-        val isSeries = movie.type == "series" || movie.type == "hoathinh" || episodesList.size > 1
-
-        return if (isSeries) {
+        return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = finalPoster
                 this.year = movie.year
