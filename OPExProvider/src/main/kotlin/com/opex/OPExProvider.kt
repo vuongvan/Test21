@@ -105,53 +105,66 @@ class OPExProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
+        
+        // --- PARSE JSON CHUẨN XÁC ---
+        val rootData = parseJson<OPRootResponse>(response)
+        val movie = rootData.data?.item ?: return null // Lấy dữ liệu phim từ data.item
+        
+        // --- TRÍCH XUẤT THÔNG TIN CƠ BẢN ---
+        val movieName = movie.name ?: "OPhim"
+        val movieYear = movie.year
+        val movieContent = movie.content ?: ""
+        
+        // Lấy domain ảnh từ JSON nếu có, không thì dùng mặc định
+        val currentImgDomain = rootData.data?.cdnImage ?: imgDomain
+        val posterPath = movie.poster_url ?: movie.thumb_url ?: ""
+        val poster = if (posterPath.startsWith("http")) posterPath else "$currentImgDomain/$posterPath"
+
         val metaTags = mutableListOf<String>()
+        val rawStatus = movie.status ?: ""
+        
+        // Xử lý xác định phim lẻ hay phim bộ (JSON trả về dạng "13 Tập" nên cần xóa chữ Tập đi để kiểm tra)
+        val epTotalNumber = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
+        val isSingleEpisode = epTotalNumber == "1"
 
-        val movieName = """"name":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
-        val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
-        val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-
-        // Phân loại phim
-        val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
-        val isSingleEpisode = epTotalRaw == "1"
-
-        // Lấy status gốc từ API để dùng chung
-        val startAnchor = response.indexOf("\"origin_name\"")
-        val endAnchor = response.indexOf("\"thumb_url\"")
-        val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
-            val safeZone = response.substring(startAnchor, endAnchor)
-            """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
-        } else ""
-
-        // --- XỬ LÝ PROGRESS TAG (CHỈ PHIM BỘ) ---
+        // --- XỬ LÝ TIẾN TRÌNH (CHỈ PHIM BỘ) ---
         if (!isSingleEpisode) {
-            val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-            val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            val epCurrent = movie.episode_current ?: ""
+            val epTotal = movie.episode_total ?: ""
             
             val curr = epCurrent.replace("Tập", "", true).trim()
             val total = epTotal.replace("Tập", "", true).trim()
 
             val displayProgress = if (rawStatus.equals("ongoing", true)) {
-                // Đang chiếu: hiện dạng 9/24 Tập
                 if (curr.isNotEmpty() && total.isNotEmpty()) "$curr/$total Tập" else epCurrent
             } else {
-                // Đã hoàn thành: Chỉ lấy giá trị episode_current (ví dụ: "21 Tập" hoặc "21")
                 epCurrent 
             }
-            
             if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
         }
 
-        // --- GOM NHÓM SERVER ---
+        // --- CHỈ GIỮ LẠI LỒNG TIẾNG/THUYẾT MINH ---
+        movie.lang?.let { lang ->
+            lang.split("+").forEach {
+                val tag = it.trim()
+                if (!tag.contains("Vietsub", true)) {
+                    metaTags.add(tag)
+                }
+            }
+        }
+
+        // --- THÊM THỂ LOẠI ---
+        movie.category?.forEach { cat ->
+            cat.name?.let { metaTags.add(it) }
+        }
+
+        // --- GOM NHÓM TẬP PHIM TỪ DANH SÁCH SERVER ---
         val epMap = mutableMapOf<String, MutableList<String>>()
-        val serverBlocks = response.split(""""server_name":""").drop(1)
-        serverBlocks.forEach { block ->
-            val serverName = block.substringBefore("""","""").replace("\"", "")
-            val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
-            epDataRegex.findAll(block).forEach { epMatch ->
-                val epName = epMatch.groupValues[1]
-                val link = epMatch.groupValues[2].replace("\\/", "/")
+        movie.episodes?.forEach { server ->
+            val serverName = server.server_name ?: "Server"
+            server.server_data?.forEach { ep ->
+                val epName = ep.name ?: ""
+                val link = ep.link_m3u8 ?: ""
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
                     epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
@@ -166,30 +179,11 @@ class OPExProvider : MainAPI() {
             }
         }.sortedBy { it.episode }
 
-        // Cài đặt chung
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
-        val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
+        val ratingValue = movie.tmdb?.vote_average ?: 0.0
 
-        // --- CHỈ THÊM TAG NẾU KHÔNG PHẢI VIETSUB ---
-        val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        if (langRaw.isNotEmpty()) {
-            langRaw.split("+").forEach {
-                val tag = it.trim()
-                // Chỉ thêm vào metaTags nếu chữ đó KHÔNG chứa "Vietsub"
-                if (!tag.contains("Vietsub", ignoreCase = true)) {
-                    metaTags.add(tag)
-                }
-            }
-        }
-        
-        val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
-
-        val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
-        val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
-
-        // --- TRẢ VỀ ---
+        // --- TRẢ VỀ RESPONSE CHUẨN ---
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
@@ -205,15 +199,15 @@ class OPExProvider : MainAPI() {
                 this.year = movieYear
                 this.tags = metaTags
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
-                
-                // THÊM SHOW STATUS CHO PHIM BỘ Ở ĐÂY
-                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) {
-                    ShowStatus.Completed 
+                this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) {
+                    ShowStatus.Completed
                 } else {
                     ShowStatus.Ongoing
                 }
             }
         }
+    }
+    
         }
         
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
@@ -243,4 +237,53 @@ data class OPItem(
     @field:JsonProperty("slug") val slug: String? = null,
     @field:JsonProperty("poster_url") val poster_url: String? = null,
     @field:JsonProperty("thumb_url") val thumb_url: String? = null
+)
+// Root JSON chứa "status", "data"
+data class OPRootResponse(
+    @field:JsonProperty("status") val status: String? = null,
+    @field:JsonProperty("data") val data: OPDataContent? = null
+)
+
+// Bên trong "data" chứa "item" và "APP_DOMAIN_CDN_IMAGE"
+data class OPDataContent(
+    @field:JsonProperty("item") val item: OPItemDetail? = null,
+    @field:JsonProperty("APP_DOMAIN_CDN_IMAGE") val cdnImage: String? = null
+)
+
+// Thông tin chi tiết của bộ phim nằm trong "item"
+data class OPItemDetail(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("content") val content: String? = null,
+    @field:JsonProperty("status") val status: String? = null,
+    @field:JsonProperty("poster_url") val poster_url: String? = null,
+    @field:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @field:JsonProperty("year") val year: Int? = null,
+    @field:JsonProperty("episode_current") val episode_current: String? = null,
+    @field:JsonProperty("episode_total") val episode_total: String? = null,
+    @field:JsonProperty("lang") val lang: String? = null,
+    @field:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
+    @field:JsonProperty("category") val category: List<OPCat>? = null,
+    @field:JsonProperty("episodes") val episodes: List<OPServer>? = null
+)
+
+// TMDB chứa Rating
+data class OPTmdb(
+    @field:JsonProperty("vote_average") val vote_average: Double? = null
+)
+
+// Thể loại
+data class OPCat(
+    @field:JsonProperty("name") val name: String? = null
+)
+
+// Danh sách Server (Vietsub #1, Thuyết Minh #1...)
+data class OPServer(
+    @field:JsonProperty("server_name") val server_name: String? = null,
+    @field:JsonProperty("server_data") val server_data: List<OPEpisode>? = null
+)
+
+// Thông tin từng tập phim
+data class OPEpisode(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
