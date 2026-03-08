@@ -238,23 +238,26 @@ data class OPItem(
 )
 // Root JSON chứa "status", "data"
 data class OPRootResponse(
-    @field:JsonProperty("status") val status: String? = null,
     @field:JsonProperty("data") val data: OPDataContent? = null
 )
 
-// Bên trong "data" chứa "item" và "APP_DOMAIN_CDN_IMAGE"
 data class OPDataContent(
-    @field:JsonProperty("item") val item: OPItemDetail? = null,
-    @field:JsonProperty("APP_DOMAIN_CDN_IMAGE") val cdnImage: String? = null
+    @field:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null,
+    @field:JsonProperty("item") val item: OPItemDetail? = null
 )
 
-// Thông tin chi tiết của bộ phim nằm trong "item"
+data class OPSeoOnPage(
+    @field:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null
+)
+
+data class OPSeoSchema(
+    @field:JsonProperty("image") val image: String? = null
+)
+
 data class OPItemDetail(
     @field:JsonProperty("name") val name: String? = null,
     @field:JsonProperty("content") val content: String? = null,
     @field:JsonProperty("status") val status: String? = null,
-    @field:JsonProperty("poster_url") val poster_url: String? = null,
-    @field:JsonProperty("thumb_url") val thumb_url: String? = null,
     @field:JsonProperty("year") val year: Int? = null,
     @field:JsonProperty("episode_current") val episode_current: String? = null,
     @field:JsonProperty("episode_total") val episode_total: String? = null,
@@ -264,24 +267,13 @@ data class OPItemDetail(
     @field:JsonProperty("episodes") val episodes: List<OPServer>? = null
 )
 
-// TMDB chứa Rating
-data class OPTmdb(
-    @field:JsonProperty("vote_average") val vote_average: Double? = null
-)
-
-// Thể loại
-data class OPCat(
-    @field:JsonProperty("name") val name: String? = null
-)
-
-// Danh sách Server (Vietsub #1, Thuyết Minh #1...)
+data class OPTmdb(@field:JsonProperty("vote_average") val vote_average: Double? = null)
+data class OPCat(@field:JsonProperty("name") val name: String? = null)
 data class OPServer(
-    @field:JsonProperty("server_name") val server_name: String? = null,
+    @field:JsonProperty("server_name") val server_name: String? = null, 
     @field:JsonProperty("server_data") val server_data: List<OPEpisode>? = null
 )
-
-// Thông tin từng tập phim
 data class OPEpisode(
-    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("name") val name: String? = null, 
     @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
