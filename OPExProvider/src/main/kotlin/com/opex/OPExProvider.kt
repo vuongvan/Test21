@@ -102,63 +102,56 @@ class OPExProvider : MainAPI() {
         } catch (e: Exception) { emptyList() }
     }
 
-     
     override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
-        
-        // --- SỬ DỤNG PARSE JSON ĐỂ LẤY DỮ LIỆU CHUẨN ---
-        val detailData = parseJson<OPDetailResponse>(response)
-        val movie = detailData.movie ?: return null
-        
-        // Tên phim giờ đây chắc chắn chỉ là giá trị của trường "name"
-        val movieName = movie.name ?: "OPhim"
-        val movieYear = movie.year
-        val movieContent = movie.content ?: ""
-        val moviePoster = movie.poster_url ?: ""
-        
         val metaTags = mutableListOf<String>()
-        val isSingleEpisode = movie.episode_total == "1"
-        val rawStatus = movie.status ?: ""
 
-        // --- XỬ LÝ TIẾN TRÌNH (CHỈ PHIM BỘ) ---
+        val movieName = """"name":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
+        val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
+        val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+        val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+
+        // Phân loại phim
+        val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
+        val isSingleEpisode = epTotalRaw == "1"
+
+        // Lấy status gốc từ API để dùng chung
+        val startAnchor = response.indexOf("\"origin_name\"")
+        val endAnchor = response.indexOf("\"thumb_url\"")
+        val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
+            val safeZone = response.substring(startAnchor, endAnchor)
+            """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
+        } else ""
+
+        // --- XỬ LÝ PROGRESS TAG (CHỈ PHIM BỘ) ---
         if (!isSingleEpisode) {
-            val epCurrent = movie.episode_current ?: ""
-            val epTotal = movie.episode_total ?: ""
+            val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
             
             val curr = epCurrent.replace("Tập", "", true).trim()
             val total = epTotal.replace("Tập", "", true).trim()
 
             val displayProgress = if (rawStatus.equals("ongoing", true)) {
+                // Đang chiếu: hiện dạng 9/24 Tập
                 if (curr.isNotEmpty() && total.isNotEmpty()) "$curr/$total Tập" else epCurrent
             } else {
+                // Đã hoàn thành: Chỉ lấy giá trị episode_current (ví dụ: "21 Tập" hoặc "21")
                 epCurrent 
             }
+            
             if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
         }
 
-        // --- TAGS: LOẠI BỎ VIETSUB ---
-        movie.lang?.let { lang ->
-            lang.split("+").forEach {
-                val tag = it.trim()
-                if (!tag.contains("Vietsub", true)) {
-                    metaTags.add(tag)
-                }
-            }
-        }
-
-        // --- THỂ LOẠI ---
-        movie.category?.forEach { cat ->
-            cat.name?.let { metaTags.add(it) }
-        }
-
-        // --- XỬ LÝ TẬP PHIM (GIỮ NGUYÊN LOGIC SERVER) ---
+        // --- GOM NHÓM SERVER ---
         val epMap = mutableMapOf<String, MutableList<String>>()
-        detailData.episodes?.forEach { server ->
-            val serverName = server.server_name ?: "Server"
-            server.server_data?.forEach { ep ->
-                val epName = ep.name ?: ""
-                val link = ep.link_m3u8 ?: ""
+        val serverBlocks = response.split(""""server_name":""").drop(1)
+        serverBlocks.forEach { block ->
+            val serverName = block.substringBefore("""","""").replace("\"", "")
+            val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
+            epDataRegex.findAll(block).forEach { epMatch ->
+                val epName = epMatch.groupValues[1]
+                val link = epMatch.groupValues[2].replace("\\/", "/")
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
                     epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
@@ -173,17 +166,37 @@ class OPExProvider : MainAPI() {
             }
         }.sortedBy { it.episode }
 
+        // Cài đặt chung
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
+        // --- CHỈ THÊM TAG NẾU KHÔNG PHẢI VIETSUB ---
+        val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+        if (langRaw.isNotEmpty()) {
+            langRaw.split("+").forEach {
+                val tag = it.trim()
+                // Chỉ thêm vào metaTags nếu chữ đó KHÔNG chứa "Vietsub"
+                if (!tag.contains("Vietsub", ignoreCase = true)) {
+                    metaTags.add(tag)
+                }
+            }
+        }
+        
+        val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
+
+        val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
+        val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
+
+        // --- TRẢ VỀ ---
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
-                movie.vote_average?.let { if (it > 0) this.score = Score.from10(it) }
+                if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, tvType, episodeList) {
@@ -191,18 +204,18 @@ class OPExProvider : MainAPI() {
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
-                movie.vote_average?.let { if (it > 0) this.score = Score.from10(it) }
-                this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) {
-                    ShowStatus.Completed
+                if (ratingValue > 0) this.score = Score.from10(ratingValue)
+                
+                // THÊM SHOW STATUS CHO PHIM BỘ Ở ĐÂY
+                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) {
+                    ShowStatus.Completed 
                 } else {
                     ShowStatus.Ongoing
                 }
             }
         }
-    }
-
-// --- CẦN THÊM CÁC DATA CLASS NÀY Ở CUỐI FILE ĐỂ PARSE JSON ---
-
+        }
+        
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
             val parts = info.split("|")
@@ -230,34 +243,4 @@ data class OPItem(
     @field:JsonProperty("slug") val slug: String? = null,
     @field:JsonProperty("poster_url") val poster_url: String? = null,
     @field:JsonProperty("thumb_url") val thumb_url: String? = null
-)
-// --- CẤU TRÚC DATA CLASS VỚI @field:JsonProperty ---
-data class OPDetailResponse(
-    @field:JsonProperty("movie") val movie: OPMovieDetail? = null,
-    @field:JsonProperty("episodes") val episodes: List<OPServer>? = null
-)
-
-data class OPMovieDetail(
-    @field:JsonProperty("name") val name: String? = null,
-    @field:JsonProperty("content") val content: String? = null,
-    @field:JsonProperty("status") val status: String? = null,
-    @field:JsonProperty("poster_url") val poster_url: String? = null,
-    @field:JsonProperty("year") val year: Int? = null,
-    @field:JsonProperty("episode_current") val episode_current: String? = null,
-    @field:JsonProperty("episode_total") val episode_total: String? = null,
-    @field:JsonProperty("lang") val lang: String? = null,
-    @field:JsonProperty("vote_average") val vote_average: Double? = null,
-    @field:JsonProperty("category") val category: List<OPCat>? = null
-)
-
-data class OPCat(@field:JsonProperty("name") val name: String? = null)
-
-data class OPServer(
-    @field:JsonProperty("server_name") val server_name: String? = null,
-    @field:JsonProperty("server_data") val server_data: List<OPEpisode>? = null
-)
-
-data class OPEpisode(
-    @field:JsonProperty("name") val name: String? = null,
-    @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
