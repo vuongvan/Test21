@@ -138,14 +138,14 @@ class OPExProvider : MainAPI() {
         }
 
         // Tạo danh sách tập phim đã làm sạch tên
+        // Trong hàm load, phần tạo tập phim phải như thế này:
         val episodeList = epMap.map { (epName, links) ->
-            newEpisode(links.joinToString(",")) {
-                // CHỈ GIỮ LẠI TÊN TẬP (VD: Tập 1), không còn chữ Vietsub ở đây
-                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
-                val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
-                this.episode = firstNum?.toIntOrNull()
-            }
-        }.sortedBy { it.episode }
+          newEpisode(links.joinToString(",")) { // links ở đây chứa "url|Server"
+        this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
+        val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
+        this.episode = firstNum?.toIntOrNull()
+         }
+       }.sortedBy { it.episode }
 
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
