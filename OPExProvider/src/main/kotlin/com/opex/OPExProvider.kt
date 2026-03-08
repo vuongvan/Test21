@@ -102,7 +102,7 @@ class OPExProvider : MainAPI() {
         } catch (e: Exception) { emptyList() }
     }
 
-        override suspend fun load(url: String): LoadResponse? {
+    override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
         val metaTags = mutableListOf<String>()
@@ -112,20 +112,20 @@ class OPExProvider : MainAPI() {
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
 
-        // Xác định loại phim qua episode_total từ JSON
+        // Phân loại phim
         val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
         val isSingleEpisode = epTotalRaw == "1"
 
-        // --- XỬ LÝ STATUS VÀ PROGRESS (CHỈ CHO PHIM BỘ) ---
+        // Lấy status gốc từ API để dùng chung
+        val startAnchor = response.indexOf("\"origin_name\"")
+        val endAnchor = response.indexOf("\"thumb_url\"")
+        val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
+            val safeZone = response.substring(startAnchor, endAnchor)
+            """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
+        } else ""
+
+        // --- XỬ LÝ PROGRESS TAG (CHỈ PHIM BỘ) ---
         if (!isSingleEpisode) {
-            val startAnchor = response.indexOf("\"origin_name\"")
-            val endAnchor = response.indexOf("\"thumb_url\"")
-
-            val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
-                val safeZone = response.substring(startAnchor, endAnchor)
-                """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
-            } else ""
-
             val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
             val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
 
@@ -134,22 +134,18 @@ class OPExProvider : MainAPI() {
             } else {
                 epCurrent
             }
-
             if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
         }
 
-        // --- GOM NHÓM NGUỒN PHIM ---
+        // --- GOM NHÓM SERVER ---
         val epMap = mutableMapOf<String, MutableList<String>>()
         val serverBlocks = response.split(""""server_name":""").drop(1)
-
         serverBlocks.forEach { block ->
             val serverName = block.substringBefore("""","""").replace("\"", "")
             val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
-
             epDataRegex.findAll(block).forEach { epMatch ->
                 val epName = epMatch.groupValues[1]
                 val link = epMatch.groupValues[2].replace("\\/", "/")
-
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
                     epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
@@ -164,28 +160,27 @@ class OPExProvider : MainAPI() {
             }
         }.sortedBy { it.episode }
 
+        // Cài đặt chung
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        // --- THÊM CÁC TAG KHÁC ---
+        // Thêm Lang và Category vào tags
         val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         if (langRaw.isNotEmpty()) {
-            langRaw.split("+").forEach {
-                val tag = it.trim()
-                if (tag.isNotEmpty()) metaTags.add(tag)
+            langRaw.split("+").forEach { tag ->
+                val t = tag.trim()
+                if (t.isNotEmpty()) metaTags.add(t)
             }
         }
 
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach {
-            metaTags.add(it.groupValues[1])
-        }
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
 
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
 
-        // --- TRẢ VỀ KẾT QUẢ ---
+        // --- TRẢ VỀ ---
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
@@ -201,10 +196,16 @@ class OPExProvider : MainAPI() {
                 this.year = movieYear
                 this.tags = metaTags
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
+                
+                // THÊM SHOW STATUS CHO PHIM BỘ Ở ĐÂY
+                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) {
+                    ShowStatus.Completed 
+                } else {
+                    ShowStatus.Ongoing
+                }
             }
         }
-}
-
+        }
         
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
