@@ -176,8 +176,23 @@ class OPExProvider : MainAPI() {
         """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
             metaTags.add(it.groupValues[1]) 
         }
-        return newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
-            this.posterUrl = poster
+        val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
+        val isSingleEpisode = epTotalRaw == "1"
+        val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
+        
+        return if (tvType == TvType.Movie) {
+            // Đối với Movie, ta lấy link đầu tiên làm link mặc định, các server khác sẽ hiện trong nút chọn Source
+            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+                this.posterUrl = poster
+                this.plot = plotClean
+                this.year = movieYear
+                this.tags = metaTags
+                if (ratingValue > 0) {
+                 this.score = Score.from10(ratingValue)
+            }
+        } else {
+            newTvSeriesLoadResponse(movieName, url, tvType, episodeList.sortedBy { it.episode }) {
+                this.posterUrl = poster
             this.plot = plotClean
             this.year = movieYear
             this.tags = metaTags
@@ -189,7 +204,8 @@ class OPExProvider : MainAPI() {
             }
         }
     }
-
+        }
+        
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
             val parts = info.split("|")
