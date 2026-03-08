@@ -200,6 +200,7 @@ if (langRaw.isNotEmpty()) {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
+                this.tags = metaTags
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         } else {
@@ -207,6 +208,7 @@ if (langRaw.isNotEmpty()) {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
+                this.tags = metaTags
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         }
