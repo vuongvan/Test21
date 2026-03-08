@@ -102,7 +102,7 @@ class OPExProvider : MainAPI() {
         } catch (e: Exception) { emptyList() }
     }
 
-    override suspend fun load(url: String): LoadResponse? {
+        override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
         
@@ -111,100 +111,65 @@ class OPExProvider : MainAPI() {
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         
-        // --- LOGIC LỌC STATUS TRONG VÙNG AN TOÀN ---
-        val startAnchor = response.indexOf("\"origin_name\"")
-        val endAnchor = response.indexOf("\"thumb_url\"")
-        
-        val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
-            val safeZone = response.substring(startAnchor, endAnchor) 
-            """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
-        } else ""
+        // 1. Xác định số tập để phân loại Movie/TV
+        val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
+        val isSingleEpisode = epTotalRaw == "1"
 
-        val statusFromApi = rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
-        
-        val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        
-        val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
-            "$epCurrent / $epTotal" 
-        } else {
-            epCurrent 
-        }
-
+        // 2. Lấy Rating (Score)
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
-        val tmdbRating = if (ratingValue > 0.0) "${"%.1f".format(ratingValue)}" else null
-        // val tmdbRating = "%.1f".format(ratingValue)
 
-        // 5. FIX LỖI TẬP PHIM: Xử lý cụm tập "01-03", "04-06"
-        val epMap = mutableMapOf<String, MutableList<String>>() 
+        val episodeList = mutableListOf<Episode>()
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
         serverBlocks.forEach { block ->
-            val serverName = block.substringBefore("""",""").replace("\"", "")
-            // Cập nhật Regex để bắt "name" chính xác hơn từ JSON
+            val serverName = block.substringBefore("""","""").replace("\"", "")
             val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
             
             epDataRegex.findAll(block).forEach { epMatch ->
-                val epName = epMatch.groupValues[1] // Lấy "01-03" hoặc "1"
+                val epName = epMatch.groupValues[1] 
                 val link = epMatch.groupValues[2].replace("\\/", "/")
+                
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
-                    epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
+                    episodeList.add(newEpisode(link) {
+                        this.name = if (isSingleEpisode) serverName else "Tập $epName - $serverName"
+                        val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
+                        this.episode = firstNum?.toIntOrNull()
+                    })
                 }
             }
         }
 
-        val episodeList = epMap.map { (epName, links) ->
-            newEpisode(links.joinToString(",")) {
-                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else "Tập $epName"
-                
-                // Lấy số đầu tiên trong chuỗi làm số tập để sắp xếp (ví dụ: "01-03" lấy 1)
-                val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
-                this.episode = firstNum?.toIntOrNull()
-            }
-        }.sortedBy { it.episode }
-
-        val metaTags = mutableListOf<String>()
-        if (statusFromApi.isNotEmpty()) metaTags.add(statusFromApi) 
-        if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
-        if (tmdbRating != null) metaTags.add("★ $tmdbRating")
-
+        val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
-        // Lấy danh sách thể loại (Ví dụ: Viễn Tưởng, Khoa Học)
+
+        val metaTags = mutableListOf<String>()
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
-            metaTags.add(it.groupValues[1]) 
-        }
-        val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
-        val isSingleEpisode = epTotalRaw == "1"
-        val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
-        
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
+
+        // --- TRẢ VỀ KÈM SCORE ---
         return if (tvType == TvType.Movie) {
-            // Đối với Movie, ta lấy link đầu tiên làm link mặc định, các server khác sẽ hiện trong nút chọn Source
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
-                if (ratingValue > 0) {
-                 this.score = Score.from10(ratingValue)
+                // Đổ điểm số vào đây
+                if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, tvType, episodeList.sortedBy { it.episode }) {
                 this.posterUrl = poster
-            this.plot = plotClean
-            this.year = movieYear
-            this.tags = metaTags
-            // Set status to metadata
-            this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
-            // Add rating to metadata
-            if (ratingValue > 0) {
-                this.score = Score.from10(ratingValue)
+                this.plot = plotClean
+                this.year = movieYear
+                this.tags = metaTags
+                // Đổ điểm số vào đây
+                if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         }
     }
-        }
+
         
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
