@@ -129,7 +129,7 @@ class KKPExProvider : MainAPI() {
 
 // 2. Logic xác định phim bộ: 
 // Chỉ là phim bộ nếu type là series/hoathinh VÀ episode_total khác "1"
-       val isSeries = (movie.type == "series" || movie.type == "hoathinh") && totalEpisodes != "1"
+        val isSeries = totalEpisodes != "1"
         if (isSeries) {
             // Tag Trạng thái: Ongoing / Completed
             val isCompleted = movie.status == "completed"
