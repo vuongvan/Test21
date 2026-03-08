@@ -95,7 +95,7 @@ class OPExProvider : MainAPI() {
             val data = parseJson<OPListResponse>(response)
             val items = data.data?.items ?: data.items 
             items?.map {
-                newMovieSearchResponse(it.name ?: "", "$mainUrl/phim/${it.slug}", TvType.Movie) {
+                newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
                     this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
                 }
             } ?: emptyList()
