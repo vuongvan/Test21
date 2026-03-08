@@ -119,7 +119,17 @@ class OPExProvider : MainAPI() {
         // --- GOM NHÓM NGUỒN PHIM ---
         val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
+        
+        val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
+            val safeZone = response.substring(startAnchor, endAnchor) 
+            """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
+        } else ""
 
+        val statusFromApi = rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+        
+        val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+        val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+        
         val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
             "$epCurrent / $epTotal" 
         } else {
