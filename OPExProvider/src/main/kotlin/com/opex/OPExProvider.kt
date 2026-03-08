@@ -111,19 +111,19 @@ class OPExProvider : MainAPI() {
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         
-        // 1. Xác định số tập để phân loại Movie/TV
+        // Xác định loại phim qua episode_total từ JSON
         val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
         val isSingleEpisode = epTotalRaw == "1"
 
-        // 2. Lấy Rating (Score)
-        val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
-        val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
-
-        val episodeList = mutableListOf<Episode>()
+        // --- GOM NHÓM NGUỒN PHIM ---
+        val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
         serverBlocks.forEach { block ->
+            // Lấy tên server (VD: Vietsub #1, Thuyết Minh #1)
             val serverName = block.substringBefore("""","""").replace("\"", "")
+            
+            // Regex bóc tách link m3u8 và tên tập từ JSON
             val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
             
             epDataRegex.findAll(block).forEach { epMatch ->
@@ -131,56 +131,74 @@ class OPExProvider : MainAPI() {
                 val link = epMatch.groupValues[2].replace("\\/", "/")
                 
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
-                    episodeList.add(newEpisode(link) {
-                        this.name = if (isSingleEpisode) serverName else "Tập $epName - $serverName"
-                        val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
-                        this.episode = firstNum?.toIntOrNull()
-                    })
+                    // Lưu link kèm tên server để loadLinks xử lý
+                    epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
             }
         }
+
+        // Tạo danh sách tập phim đã làm sạch tên
+        val episodeList = epMap.map { (epName, links) ->
+            newEpisode(links.joinToString(",")) {
+                // CHỈ GIỮ LẠI TÊN TẬP (VD: Tập 1), không còn chữ Vietsub ở đây
+                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
+                val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
+                this.episode = firstNum?.toIntOrNull()
+            }
+        }.sortedBy { it.episode }
 
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
         val metaTags = mutableListOf<String>()
-        val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
+        val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
+        val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
 
-        // --- TRẢ VỀ KÈM SCORE ---
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
-                this.tags = metaTags
-                // Đổ điểm số vào đây
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         } else {
-            newTvSeriesLoadResponse(movieName, url, tvType, episodeList.sortedBy { it.episode }) {
+            newTvSeriesLoadResponse(movieName, url, tvType, episodeList) {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
-                this.tags = metaTags
-                // Đổ điểm số vào đây
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         }
-    }
-
-        
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        }
+        override suspend fun loadLinks(
+        data: String, 
+        isCasting: Boolean, 
+        subtitleCallback: (SubtitleFile) -> Unit, 
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        // Tách các server đã gộp bằng dấu phẩy
         data.split(",").forEach { info ->
             val parts = info.split("|")
             val link = parts.getOrNull(0) ?: ""
-            val name = parts.getOrNull(1) ?: "OPhim"
-            if (link.isNotEmpty()) callback.invoke(newExtractorLink(name, name, link, ExtractorLinkType.M3U8))
+            val serverName = parts.getOrNull(1) ?: "OPhim"
+            
+            if (link.isNotEmpty()) {
+                callback.invoke(
+                    newExtractorLink(
+                        serverName, // Tên này sẽ hiện trong mục "Nguồn Phim"
+                        serverName, 
+                        link, 
+                        "", 
+                        Qualities.Unknown.value, 
+                        isM3u8 = true
+                    )
+                )
+            }
         }
         return true
-    }
-
+        }
+        
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
