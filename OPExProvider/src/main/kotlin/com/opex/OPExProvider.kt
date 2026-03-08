@@ -126,15 +126,21 @@ class OPExProvider : MainAPI() {
 
         // --- XỬ LÝ PROGRESS TAG (CHỈ PHIM BỘ) ---
         if (!isSingleEpisode) {
-            val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-            val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            // Trong khối if (!isSingleEpisode)
+val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
 
-            val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
-                "$epCurrent / $epTotal"
-            } else {
-                epCurrent
-            }
-            if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
+// Chỉ xóa chữ "Tập" và khoảng trắng ở các biến số tập
+val curr = epCurrent.replace("Tập", "", ignoreCase = true).trim()
+val total = epTotal.replace("Tập", "", ignoreCase = true).trim()
+
+// Kết quả: "3/12 Tập"
+if (curr.isNotEmpty() && total.isNotEmpty()) {
+    metaTags.add("$curr/$total Tập")
+} else if (epCurrent.isNotEmpty()) {
+    metaTags.add(epCurrent)
+}
+
         }
 
         // --- GOM NHÓM SERVER ---
@@ -167,12 +173,15 @@ class OPExProvider : MainAPI() {
 
         // Thêm Lang và Category vào tags
         val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        if (langRaw.isNotEmpty()) {
-            langRaw.split("+").forEach { tag ->
-                val t = tag.trim()
-                if (t.isNotEmpty()) metaTags.add(t)
-            }
-        }
+
+if (langRaw.isNotEmpty()) {
+    // Nếu langRaw là "Lồng tiếng", nó sẽ được thêm nguyên vẹn vào tag
+    // Nếu là "Vietsub + Thuyết minh", nó sẽ tách ra thành 2 tag
+    langRaw.split("+").forEach {
+        val tag = it.trim()
+        if (tag.isNotEmpty()) metaTags.add(tag)
+    }
+}
 
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
         """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
