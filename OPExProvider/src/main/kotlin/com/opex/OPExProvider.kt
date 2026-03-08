@@ -126,21 +126,21 @@ class OPExProvider : MainAPI() {
 
         // --- XỬ LÝ PROGRESS TAG (CHỈ PHIM BỘ) ---
         if (!isSingleEpisode) {
-            // Trong khối if (!isSingleEpisode)
-val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            
+            val curr = epCurrent.replace("Tập", "", true).trim()
+            val total = epTotal.replace("Tập", "", true).trim()
 
-// Chỉ xóa chữ "Tập" và khoảng trắng ở các biến số tập
-val curr = epCurrent.replace("Tập", "", ignoreCase = true).trim()
-val total = epTotal.replace("Tập", "", ignoreCase = true).trim()
-
-// Kết quả: "3/12 Tập"
-if (curr.isNotEmpty() && total.isNotEmpty()) {
-    metaTags.add("$curr/$total Tập")
-} else if (epCurrent.isNotEmpty()) {
-    metaTags.add(epCurrent)
-}
-
+            val displayProgress = if (rawStatus.equals("ongoing", true)) {
+                // Đang chiếu: hiện dạng 9/24 Tập
+                if (curr.isNotEmpty() && total.isNotEmpty()) "$curr/$total Tập" else epCurrent
+            } else {
+                // Đã hoàn thành: Chỉ lấy giá trị episode_current (ví dụ: "21 Tập" hoặc "21")
+                epCurrent 
+            }
+            
+            if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
         }
 
         // --- GOM NHÓM SERVER ---
