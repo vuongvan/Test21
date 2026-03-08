@@ -171,18 +171,18 @@ if (curr.isNotEmpty() && total.isNotEmpty()) {
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        // Thêm Lang và Category vào tags
+        // --- CHỈ THÊM TAG NẾU LÀ LỒNG TIẾNG/THUYẾT MINH ---
         val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-
-if (langRaw.isNotEmpty()) {
-    // Nếu langRaw là "Lồng tiếng", nó sẽ được thêm nguyên vẹn vào tag
-    // Nếu là "Vietsub + Thuyết minh", nó sẽ tách ra thành 2 tag
-    langRaw.split("+").forEach {
-        val tag = it.trim()
-        if (tag.isNotEmpty()) metaTags.add(tag)
-    }
-}
-
+        if (langRaw.isNotEmpty()) {
+            langRaw.split("+").forEach {
+                val tag = it.trim()
+                // Loại bỏ "Vietsub", chỉ giữ lại Thuyết minh hoặc Lồng tiếng
+                if (tag.contains("Thuyết minh", true) || tag.contains("Lồng tiếng", true)) {
+                    metaTags.add(tag)
+                }
+            }
+        }
+        
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
         """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { metaTags.add(it.groupValues[1]) }
 
