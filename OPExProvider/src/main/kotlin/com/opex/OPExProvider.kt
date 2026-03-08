@@ -107,7 +107,7 @@ class OPExProvider : MainAPI() {
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
         val metaTags = mutableListOf<String>()
 
-        val movieName = """"name":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
+        val movieName = """"name":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
         val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
