@@ -119,6 +119,12 @@ class OPExProvider : MainAPI() {
         val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
+        val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
+            "$epCurrent / $epTotal" 
+        } else {
+            epCurrent 
+        }
+        
         serverBlocks.forEach { block ->
             // Lấy tên server (VD: Vietsub #1, Thuyết Minh #1)
             val serverName = block.substringBefore("""","""").replace("\"", "")
@@ -154,6 +160,11 @@ class OPExProvider : MainAPI() {
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
         val metaTags = mutableListOf<String>()
+        if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
+        val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
+            metaTags.add(it.groupValues[1]) 
+        }
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
 
