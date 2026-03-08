@@ -139,13 +139,13 @@ class KKPExProvider : MainAPI() {
 
             val tagEp = if (!isCompleted) {
                 // Nếu chưa hoàn thành: (Số tập thực tế)/(Tổng tập dự kiến)
-                "${episodesList.size}/$totalEpisodes"
+                "$currentFromApi/$totalEpisodes"
             } else {
                 // Nếu đã hoàn thành: Lấy thẳng giá trị episode_current, không cắt gọt
                 currentFromApi
             }
             
-            movieTags.add("$tagEp Tập")
+            movieTags.add("$tagEp")
         }
         
         // 2. KIỂM TRA NGÔN NGỮ (Lồng Tiếng / Thuyết Minh)
