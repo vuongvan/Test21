@@ -119,6 +119,9 @@ class OPExProvider : MainAPI() {
         // --- GOM NHÓM NGUỒN PHIM ---
         val epMap = mutableMapOf<String, MutableList<String>>() 
         val serverBlocks = response.split(""""server_name":""").drop(1)
+
+        val startAnchor = response.indexOf("\"origin_name\"")
+        val endAnchor = response.indexOf("\"thumb_url\"")
         
         val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
             val safeZone = response.substring(startAnchor, endAnchor) 
