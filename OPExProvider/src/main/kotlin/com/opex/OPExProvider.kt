@@ -171,13 +171,13 @@ if (curr.isNotEmpty() && total.isNotEmpty()) {
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        // --- CHỈ THÊM TAG NẾU LÀ LỒNG TIẾNG/THUYẾT MINH ---
+        // --- CHỈ THÊM TAG NẾU KHÔNG PHẢI VIETSUB ---
         val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         if (langRaw.isNotEmpty()) {
             langRaw.split("+").forEach {
                 val tag = it.trim()
-                // Loại bỏ "Vietsub", chỉ giữ lại Thuyết minh hoặc Lồng tiếng
-                if (tag.contains("Thuyết minh", true) || tag.contains("Lồng tiếng", true)) {
+                // Chỉ thêm vào metaTags nếu chữ đó KHÔNG chứa "Vietsub"
+                if (!tag.contains("Vietsub", ignoreCase = true)) {
                     metaTags.add(tag)
                 }
             }
