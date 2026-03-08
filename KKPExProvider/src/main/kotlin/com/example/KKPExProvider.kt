@@ -145,7 +145,7 @@ class KKPExProvider : MainAPI() {
                 currentFromApi
             }
             
-            movieTags.add("$tagEp")
+            movieTags.add("$tagEp Tập")
         }
         
         // 2. KIỂM TRA NGÔN NGỮ (Lồng Tiếng / Thuyết Minh)
