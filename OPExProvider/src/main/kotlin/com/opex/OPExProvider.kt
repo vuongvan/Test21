@@ -207,8 +207,6 @@ class OPExProvider : MainAPI() {
             }
         }
     }
-    
-        }
         
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
