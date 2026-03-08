@@ -118,8 +118,8 @@ class OPExProvider : MainAPI() {
         // Lấy domain ảnh từ JSON nếu có, không thì dùng mặc định
         val currentImgDomain = rootData.data?.cdnImage ?: imgDomain
         val posterPath = movie.poster_url ?: movie.thumb_url ?: ""
-        val poster = if (posterPath.startsWith("http")) posterPath else "$currentImgDomain/$posterPath"
-
+        val poster = rootData.data?.seoOnPage?.seoSchema?.image ?: ""
+        
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
