@@ -105,6 +105,7 @@ class OPExProvider : MainAPI() {
         override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
+        val metaTags = mutableListOf<String>()
         
         val movieName = """"name":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
         val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
@@ -159,8 +160,21 @@ class OPExProvider : MainAPI() {
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        val metaTags = mutableListOf<String>()
+        
         if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
+// Bóc tách "lang" từ JSON
+val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+
+if (langRaw.isNotEmpty()) {
+    // Tách bằng dấu "+" nếu có cả hai, nếu chỉ có một thì vẫn chạy đúng
+    langRaw.split("+").forEach { 
+        val tag = it.trim()
+        if (tag.isNotEmpty()) {
+            // Bạn có thể thêm logic chuẩn hóa tên ở đây nếu muốn
+            metaTags.add(tag) 
+        }
+    }
+}
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
         """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
             metaTags.add(it.groupValues[1]) 
