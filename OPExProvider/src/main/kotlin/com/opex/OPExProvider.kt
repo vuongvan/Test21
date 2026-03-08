@@ -140,12 +140,14 @@ class OPExProvider : MainAPI() {
         // Tạo danh sách tập phim đã làm sạch tên
         // Trong hàm load, phần tạo tập phim phải như thế này:
         val episodeList = epMap.map { (epName, links) ->
-          newEpisode(links.joinToString(",")) { // links ở đây chứa "url|Server"
-        this.name = if (epName.all { it.isDigit() }) "Tập $epName" else epName
-        val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
-        this.episode = firstNum?.toIntOrNull()
-         }
-       }.sortedBy { it.episode }
+            newEpisode(links.joinToString(",")) {
+                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else "Tập $epName"
+                
+                // Lấy số đầu tiên trong chuỗi làm số tập để sắp xếp (ví dụ: "01-03" lấy 1)
+                val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
+                this.episode = firstNum?.toIntOrNull()
+            }
+        }.sortedBy { it.episode }
 
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
@@ -171,33 +173,16 @@ class OPExProvider : MainAPI() {
             }
         }
         }
-        override suspend fun loadLinks(
-        data: String, 
-        isCasting: Boolean, 
-        subtitleCallback: (SubtitleFile) -> Unit, 
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        // Tách các server đã gộp bằng dấu phẩy
+        
+        override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
             val parts = info.split("|")
             val link = parts.getOrNull(0) ?: ""
-            val serverName = parts.getOrNull(1) ?: "OPhim"
-            
-            if (link.isNotEmpty()) {
-                callback.invoke(
-                    newExtractorLink(
-                        serverName, // Tên này sẽ hiện trong mục "Nguồn Phim"
-                        serverName, 
-                        link, 
-                        "", 
-                        Qualities.Unknown.value, 
-                        isM3u8 = true
-                    )
-                )
-            }
+            val name = parts.getOrNull(1) ?: "OPhim"
+            if (link.isNotEmpty()) callback.invoke(newExtractorLink(name, name, link, ExtractorLinkType.M3U8))
         }
         return true
-        }
+    }
         
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
