@@ -106,64 +106,59 @@ class OPExProvider : MainAPI() {
         val slug = url.split("/").last()
         val response = app.get("$mainUrl/v1/api/phim/$slug").text
         val metaTags = mutableListOf<String>()
-        
+
         val movieName = """"name":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: "OPhim"
         val movieYear = """"year":(\d+)""".toRegex().find(response)?.groupValues?.get(1)?.toIntOrNull()
         val movieContent = """"content":"(.*?)","type"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
         val moviePoster = """"poster_url":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        
+
         // Xác định loại phim qua episode_total từ JSON
         val epTotalRaw = """"episode_total":"(\d+)"""".toRegex().find(response)?.groupValues?.get(1)
         val isSingleEpisode = epTotalRaw == "1"
 
+        // --- XỬ LÝ STATUS VÀ PROGRESS (CHỈ CHO PHIM BỘ) ---
+        if (!isSingleEpisode) {
+            val startAnchor = response.indexOf("\"origin_name\"")
+            val endAnchor = response.indexOf("\"thumb_url\"")
+
+            val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
+                val safeZone = response.substring(startAnchor, endAnchor)
+                """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
+            } else ""
+
+            val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+            val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+
+            val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
+                "$epCurrent / $epTotal"
+            } else {
+                epCurrent
+            }
+
+            if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
+        }
+
         // --- GOM NHÓM NGUỒN PHIM ---
-        val epMap = mutableMapOf<String, MutableList<String>>() 
+        val epMap = mutableMapOf<String, MutableList<String>>()
         val serverBlocks = response.split(""""server_name":""").drop(1)
 
-        val startAnchor = response.indexOf("\"origin_name\"")
-        val endAnchor = response.indexOf("\"thumb_url\"")
-        
-        val rawStatus = if (startAnchor != -1 && endAnchor != -1 && startAnchor < endAnchor) {
-            val safeZone = response.substring(startAnchor, endAnchor) 
-            """"status":"(.*?)"""".toRegex().find(safeZone)?.groupValues?.get(1) ?: ""
-        } else ""
-
-        val statusFromApi = rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
-        
-        val epCurrent = """"episode_current":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        val epTotal = """"episode_total":"(.*?)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
-        
-        val displayProgress = if (rawStatus.equals("ongoing", ignoreCase = true)) {
-            "$epCurrent / $epTotal" 
-        } else {
-            epCurrent 
-        }
-        
         serverBlocks.forEach { block ->
-            // Lấy tên server (VD: Vietsub #1, Thuyết Minh #1)
             val serverName = block.substringBefore("""","""").replace("\"", "")
-            
-            // Regex bóc tách link m3u8 và tên tập từ JSON
             val epDataRegex = """"name":"([^"]+)","slug":"[^"]*","filename"[^}]+?"link_m3u8":"([^"]+)"""".toRegex()
-            
+
             epDataRegex.findAll(block).forEach { epMatch ->
-                val epName = epMatch.groupValues[1] 
+                val epName = epMatch.groupValues[1]
                 val link = epMatch.groupValues[2].replace("\\/", "/")
-                
+
                 if (epName.isNotEmpty() && link.isNotEmpty()) {
-                    // Lưu link kèm tên server để loadLinks xử lý
                     epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
                 }
             }
         }
 
-        // Tạo danh sách tập phim đã làm sạch tên
-        // Trong hàm load, phần tạo tập phim phải như thế này:
         val episodeList = epMap.map { (epName, links) ->
             newEpisode(links.joinToString(",")) {
-                this.name = if (epName.all { it.isDigit() }) "Tập $epName" else "Tập $epName"
-                
-                // Lấy số đầu tiên trong chuỗi làm số tập để sắp xếp (ví dụ: "01-03" lấy 1)
+                this.name = "Tập $epName"
                 val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
                 this.episode = firstNum?.toIntOrNull()
             }
@@ -173,28 +168,24 @@ class OPExProvider : MainAPI() {
         val poster = if (moviePoster.startsWith("http")) moviePoster else "$imgDomain$moviePoster"
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        
-        if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
-// Bóc tách "lang" từ JSON
-val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+        // --- THÊM CÁC TAG KHÁC ---
+        val langRaw = """"lang":"([^"]+)"""".toRegex().find(response)?.groupValues?.get(1) ?: ""
+        if (langRaw.isNotEmpty()) {
+            langRaw.split("+").forEach {
+                val tag = it.trim()
+                if (tag.isNotEmpty()) metaTags.add(tag)
+            }
+        }
 
-if (langRaw.isNotEmpty()) {
-    // Tách bằng dấu "+" nếu có cả hai, nếu chỉ có một thì vẫn chạy đúng
-    langRaw.split("+").forEach { 
-        val tag = it.trim()
-        if (tag.isNotEmpty()) {
-            // Bạn có thể thêm logic chuẩn hóa tên ở đây nếu muốn
-            metaTags.add(tag) 
-        }
-    }
-}
         val categories = """"category":\[(.*?)]""".toRegex().find(response)?.groupValues?.get(1)
-        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach { 
-            metaTags.add(it.groupValues[1]) 
+        """"name":"([^"]+)"""".toRegex().findAll(categories ?: "").forEach {
+            metaTags.add(it.groupValues[1])
         }
+
         val rawRating = """"vote_average":([\d.]+)""".toRegex().find(response)?.groupValues?.get(1)
         val ratingValue = rawRating?.toDoubleOrNull() ?: 0.0
 
+        // --- TRẢ VỀ KẾT QUẢ ---
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
@@ -212,9 +203,10 @@ if (langRaw.isNotEmpty()) {
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         }
-        }
+}
+
         
-        override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
             val parts = info.split("|")
             val link = parts.getOrNull(0) ?: ""
