@@ -90,21 +90,20 @@ class OPExProvider : MainAPI() {
     }
 
 
-     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
             val response = app.get(url, timeout = 15).text
             val data = parseJson<OPListResponse>(response)
             val items = data.data?.items ?: data.items 
             
             items?.map { it ->
-                // Ép kiểu an toàn điểm số từ TMDB hoặc IMDB
-                val tmdbScore = it.tmdb?.vote_average?.toString()?.toDoubleOrNull() ?: 0.0
-                val imdbScore = it.imdb?.vote_average?.toString()?.toDoubleOrNull() ?: 0.0
+                // Lấy điểm số an toàn
+                val tmdbScore = it.tmdb?.vote_average ?: 0.0
+                val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
-                // Nếu muốn hiện chữ Vietsub, ta có thể nối vào tên phim
-                val titleName = it.name ?: ""
-                val displayName = if (!it.lang.isNullOrBlank()) "$titleName (${it.lang})" else titleName
+                // Ghép chữ Vietsub vào tên nếu cần
+                val displayName = if (!it.lang.isNullOrBlank()) "${it.name} (${it.lang})" else it.name ?: ""
 
                 newMovieSearchResponse(displayName, "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
                     this.posterUrl = if (it.poster_url?.startsWith("http") == true) {
@@ -113,20 +112,20 @@ class OPExProvider : MainAPI() {
                         "$imgDomain${it.poster_url ?: it.thumb_url}"
                     }
                     
-                    // HIỂN THỊ ĐIỂM (Rating) VÀO GÓC ẢNH
+                    // HIỂN THỊ ĐIỂM
                     if (finalRating > 0) {
                         this.score = Score.from10(finalRating)
                     }
 
-                    // Gán chất lượng HD an toàn (không dùng Subbed/Dubbed nữa)
-                    this.quality = SearchQuality.HD 
+                    // HIỂN THỊ CHẤT LƯỢNG (Lấy trực tiếp từ API: HD, CAM, v.v.)
+                    this.quality = SearchQuality.fromStrings(it.quality ?: "HD")
                 }
             } ?: emptyList()
         } catch (e: Exception) { 
             emptyList() 
         }
-        }
-        
+    }
+    
 
 
     override suspend fun load(url: String): LoadResponse? {
@@ -257,7 +256,15 @@ data class OPItem(
     @field:JsonProperty("slug") val slug: String? = null,
     @field:JsonProperty("poster_url") val poster_url: String? = null,
     @field:JsonProperty("thumb_url") val thumb_url: String? = null
+    @JsonProperty("lang") val lang: String? = null,
+    @JsonProperty("tmdb") val tmdb: OPTmdb? = null, // Dùng lại class ở dòng 292
+    @JsonProperty("imdb") val imdb: OPImdbListItem? = null // Định nghĩa ở bước 2
 )
+
+data class OPImdbListItem(
+    @JsonProperty("vote_average") val vote_average: Double? = null
+)
+
 // Root JSON chứa "status", "data"
 data class OPRootResponse(
     @field:JsonProperty("data") val data: OPDataContent? = null
