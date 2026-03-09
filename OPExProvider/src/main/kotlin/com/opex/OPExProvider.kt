@@ -97,12 +97,12 @@ class OPExProvider : MainAPI() {
             val items = data.data?.items ?: data.items 
             
             items?.map { it ->
-                // Lấy điểm số từ TMDB, nếu 0 thì lấy IMDB
+                // Lấy điểm số an toàn (Double)
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
-                // Hiển thị tên phim kèm ngôn ngữ (Vietsub/Thuyết Minh)
+                // Hiển thị tên phim kèm ngôn ngữ để người dùng dễ chọn
                 val displayName = if (!it.lang.isNullOrBlank()) "${it.name} (${it.lang})" else it.name ?: ""
 
                 newMovieSearchResponse(displayName, "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
@@ -112,20 +112,24 @@ class OPExProvider : MainAPI() {
                         "$imgDomain${it.poster_url ?: it.thumb_url}"
                     }
                     
-                    // HIỂN THỊ ĐIỂM (Rating)
+                    // Gán điểm Rating (Cloudstream tự hiểu hệ số 10)
                     if (finalRating > 0) {
                         this.score = Score.from10(finalRating)
                     }
 
-                    // HIỂN THỊ CHẤT LƯỢNG (HD, CAM...)
-                    // Sử dụng hàm getQualityFromString để an toàn với mọi bản SDK
-                    this.quality = getQualityFromString(it.quality)
+                    // Gán chất lượng: Ưu tiên lấy từ API, nếu lỗi thì mặc định HD
+                    this.quality = when (it.quality?.uppercase()) {
+                        "CAM" -> SearchQuality.Cam
+                        "SD" -> SearchQuality.SD
+                        else -> SearchQuality.HD
+                    }
                 }
             } ?: emptyList()
         } catch (e: Exception) { 
             emptyList() 
         }
     }
+    
     
 
 
@@ -259,7 +263,7 @@ data class OPItem(
     @JsonProperty("poster_url") val poster_url: String? = null,
     @JsonProperty("thumb_url") val thumb_url: String? = null,
     @JsonProperty("_id") val _id: String? = null,
-    @JsonProperty("modified") val modified: OPModified? = null,
+    @JsonProperty("modified") val modified: OPModified? = null, // Lỗi ở đây đã được sửa
     @JsonProperty("year") val year: Int? = null,
     @JsonProperty("lang") val lang: String? = null,
     @JsonProperty("quality") val quality: String? = null,
@@ -267,10 +271,16 @@ data class OPItem(
     @JsonProperty("imdb") val imdb: OPImdbListItem? = null
 )
 
-// Thêm class này để chứa điểm IMDB (tránh trùng tên với class khác)
+// Class thiếu khiến bạn bị báo lỗi Unresolved reference 'OPModified'
+data class OPModified(
+    @JsonProperty("time") val time: String? = null
+)
+
+// Class bổ trợ cho điểm IMDB
 data class OPImdbListItem(
     @JsonProperty("vote_average") val vote_average: Double? = null
 )
+
 
 
 // Root JSON chứa "status", "data"
