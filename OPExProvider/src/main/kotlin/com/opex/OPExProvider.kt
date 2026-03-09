@@ -97,12 +97,12 @@ class OPExProvider : MainAPI() {
             val items = data.data?.items ?: data.items 
             
             items?.map { it ->
-                // Lấy điểm số an toàn
+                // Lấy điểm số từ TMDB, nếu 0 thì lấy IMDB
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
-                // Ghép chữ Vietsub vào tên nếu cần
+                // Hiển thị tên phim kèm ngôn ngữ (Vietsub/Thuyết Minh)
                 val displayName = if (!it.lang.isNullOrBlank()) "${it.name} (${it.lang})" else it.name ?: ""
 
                 newMovieSearchResponse(displayName, "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
@@ -112,13 +112,14 @@ class OPExProvider : MainAPI() {
                         "$imgDomain${it.poster_url ?: it.thumb_url}"
                     }
                     
-                    // HIỂN THỊ ĐIỂM
+                    // HIỂN THỊ ĐIỂM (Rating)
                     if (finalRating > 0) {
                         this.score = Score.from10(finalRating)
                     }
 
-                    // HIỂN THỊ CHẤT LƯỢNG (Lấy trực tiếp từ API: HD, CAM, v.v.)
-                    this.quality = SearchQuality.fromStrings(it.quality ?: "HD")
+                    // HIỂN THỊ CHẤT LƯỢNG (HD, CAM...)
+                    // Sử dụng hàm getQualityFromString để an toàn với mọi bản SDK
+                    this.quality = getQualityFromString(it.quality)
                 }
             } ?: emptyList()
         } catch (e: Exception) { 
@@ -252,18 +253,25 @@ data class OPListData(
 )
 
 data class OPItem(
-    @field:JsonProperty("name") val name: String? = null,
-    @field:JsonProperty("slug") val slug: String? = null,
-    @field:JsonProperty("poster_url") val poster_url: String? = null,
-    @field:JsonProperty("thumb_url") val thumb_url: String? = null
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("slug") val slug: String? = null,
+    @JsonProperty("origin_name") val origin_name: String? = null,
+    @JsonProperty("poster_url") val poster_url: String? = null,
+    @JsonProperty("thumb_url") val thumb_url: String? = null,
+    @JsonProperty("_id") val _id: String? = null,
+    @JsonProperty("modified") val modified: OPModified? = null,
+    @JsonProperty("year") val year: Int? = null,
     @JsonProperty("lang") val lang: String? = null,
-    @JsonProperty("tmdb") val tmdb: OPTmdb? = null, // Dùng lại class ở dòng 292
-    @JsonProperty("imdb") val imdb: OPImdbListItem? = null // Định nghĩa ở bước 2
+    @JsonProperty("quality") val quality: String? = null,
+    @JsonProperty("tmdb") val tmdb: OPTmdb? = null,
+    @JsonProperty("imdb") val imdb: OPImdbListItem? = null
 )
 
+// Thêm class này để chứa điểm IMDB (tránh trùng tên với class khác)
 data class OPImdbListItem(
     @JsonProperty("vote_average") val vote_average: Double? = null
 )
+
 
 // Root JSON chứa "status", "data"
 data class OPRootResponse(
