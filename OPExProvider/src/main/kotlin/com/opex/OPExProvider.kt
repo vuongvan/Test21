@@ -114,19 +114,21 @@ class OPExProvider : MainAPI() {
         val data = movieRoot.data ?: return null
         val movie = data.item ?: return null
         
-        // --- XỬ LÝ DIỄN VIÊN TỪ API PEOPLES ---
+        // --- XỬ LÝ DIỄN VIÊN (ĐÃ SỬA TÊN PARAMETER) ---
         val peopleRoot = try { parseJson<OPPeopleResponse>(peopleResponse) } catch (e: Exception) { null }
         val imgBase = peopleRoot?.data?.profileSizes?.h632 ?: "https://image.tmdb.org/t/p/h632"
         
         val actorsList = peopleRoot?.data?.peoples?.filter { 
-            it.department == "Acting" // Chỉ lấy diễn viên, bỏ qua hậu cần/âm thanh
+            it.department == "Acting" 
         }?.map { person ->
+            // Cloudstream ActorData: actor (tên), role (vai), image (ảnh)
             ActorData(
-                name = person.name ?: "",
-                roleString = person.character ?: "",
+                actor = person.name ?: "", // Sửa từ name -> actor
+                role = person.character ?: "", // Dùng role thay vì roleString để an toàn hơn
                 image = if (person.profilePath.isNullOrEmpty()) null else "$imgBase${person.profilePath}"
             )
         }
+        
 
         // --- CÁC THÔNG TIN CƠ BẢN ---
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
@@ -288,4 +290,3 @@ data class OPPerson(
     @field:JsonProperty("profile_path") val profilePath: String? = null,
     @field:JsonProperty("known_for_department") val department: String? = null
 )
-    
