@@ -103,7 +103,7 @@ class OPExProvider : MainAPI() {
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
                 // Hiển thị tên phim kèm ngôn ngữ để người dùng dễ chọn
-                val displayName = if (!it.lang.isNullOrBlank()) "${it.name} (${it.lang})" else it.name ?: ""
+                val displayName = if (!it.lang.isNullOrBlank()) "${it.name}" else it.name ?: ""
 
                 newMovieSearchResponse(displayName, "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
                     this.posterUrl = if (it.poster_url?.startsWith("http") == true) {
