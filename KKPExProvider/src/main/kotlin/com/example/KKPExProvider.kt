@@ -37,18 +37,52 @@ class KKPExProvider : MainAPI() {
     }
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
-        return try {
-            val response = app.get(url).text
-            val data = parseJson<KKListResponse>(response)
-            val items = data.data?.items ?: data.items 
-            items?.map {
-                newMovieSearchResponse(it.name ?: "", "$mainUrl/phim/${it.slug}", TvType.Movie) {
-                    this.posterUrl = fixPosterUrl(it.poster_url ?: it.thumb_url)
-                }
-            } ?: emptyList()
-        } catch (e: Exception) { emptyList() }
-    }
+        private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+        val response = app.get(url).text
+        
+        // Cố gắng parse JSON thành danh sách các item
+        // PhimApi thường trả về items nằm ở res.data?.items (danh sách) hoặc res.items (tìm kiếm/trang chủ)
+        val items = try {
+            val res = parseJson<KKListResponse>(response)
+            res.data?.items ?: res.items ?: emptyList()
+        } catch (e: Exception) {
+            try {
+                val searchRes = parseJson<KKSearchResponse>(response)
+                searchRes.data?.items ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
 
+        // Map các item thành giao diện SearchResponse của CloudStream
+        return items.mapNotNull { item ->
+            val title = item.name ?: return@mapNotNull null
+            val slug = item.slug ?: return@mapNotNull null
+            
+            // Xây dựng URL chi tiết để truyền vào hàm load()
+            val href = "$mainUrl/phim/$slug" 
+            val poster = fixPosterUrl(item.poster_url ?: item.thumb_url)
+
+            // Khởi tạo hiển thị cho từng item trên màn hình
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = poster
+                
+                // ==========================================
+                // LOGIC HIỂN THỊ ĐÁNH GIÁ (RATING) TRÊN ẢNH BÌA
+                // ==========================================
+                item.tmdb?.vote_average?.let { score ->
+                    if (score > 0) {
+                        // CloudStream sử dụng hệ số Int chia cho 1000.
+                        // Ví dụ: score là 8.2 -> nhân 1000 = 8200.
+                        // CloudStream sẽ tự động định dạng hiển thị thành 8.2 ★
+                        this.rating = (score * 1000).toInt()
+                    }
+                }
+            }
+        }
+        }
+
+        
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
@@ -95,89 +129,54 @@ class KKPExProvider : MainAPI() {
         } ?: emptyList()
     }
 
+
     override suspend fun load(url: String): LoadResponse? {
         val response = app.get(url).text
         val res = parseJson<KKDetailResponse>(response)
         val movie = res.movie ?: return null
         
-        val rawStatus = movie.status ?: ""
-        val episodeMap = mutableMapOf<String, MutableList<String>>()
-        res.episodes?.forEach { server ->
-            val serverName = server.server_name ?: "HLS"
-            server.server_data?.forEach { ep ->
-                val epName = ep.name ?: "1"
-                val existingLinks = episodeMap.getOrPut(epName) { mutableListOf() }
-                existingLinks.add("${ep.link_m3u8}::${serverName}")
-            }
-        }
+        // ... (Giữ nguyên các logic phân tích danh sách tập episodesList, Tags, v.v...) ...
 
-        // FIX LỖI GOM NHÓM TẬP: Chỉ lấy số đầu tiên tìm thấy trong tên tập
-        val episodesList = episodeMap.map { (epName, links) ->
-            newEpisode(links.joinToString("|||")) {
-                this.name = "$epName"
-                val s = Regex("""(\d+)""").find(epName)?.value
-                this.episode = s?.toIntOrNull()
-            }
-        }.sortedBy { it.episode }
-
-        val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
-        val movieTags = mutableListOf<String>()
+        // ==========================================
+        // THÊM ĐOẠN LOGIC LẤY THÔNG TIN DIỄN VIÊN TỪ TMDB
+        // ==========================================
+        val actorsList = mutableListOf<ActorData>()
+        val tmdbType = movie.tmdb?.type
+        val tmdbId = movie.tmdb?.id
         
-        // 1. Tag Trạng thái: Ongoing / Completed
-        //episode_total từ API
-        val totalEpisodes = movie.episode_total ?: ""
-
-// 2. Logic xác định phim bộ: 
-// Chỉ là phim bộ nếu type là series/hoathinh VÀ episode_total khác "1"
-        val isSeries = totalEpisodes != "1"
-        // --- CHỈ HIỂN THỊ ĐOẠN CODE THAY ĐỔI TRONG HÀM LOAD ---
-
-        if (isSeries) {
-            val isCompleted = movie.status == "completed"
-            val totalEpisodes = movie.episode_total ?: ""
-            val currentFromApi = movie.episode_current ?: ""
-
-            val tagEp = if (!isCompleted) {
-                // Nếu chưa hoàn thành: (Số tập thực tế)/(Tổng tập dự kiến)
-                "$currentFromApi/$totalEpisodes"
-            } else {
-                // Nếu đã hoàn thành: Lấy thẳng giá trị episode_current, không cắt gọt
-                currentFromApi
-            }
-            
-            movieTags.add("$tagEp")
-        }
-        
-        // 2. KIỂM TRA NGÔN NGỮ (Lồng Tiếng / Thuyết Minh)
-        movie.lang?.let { lang ->
-            if (lang.contains("Thuyết Minh", ignoreCase = true)) {
-                movieTags.add("Thuyết Minh")
-            } else if (lang.contains("Lồng Tiếng", ignoreCase = true)) {
-                movieTags.add("Lồng Tiếng")
+        // Nếu API gốc có type (tv/movie) và id của TMDB
+        if (!tmdbType.isNullOrEmpty() && !tmdbId.isNullOrEmpty()) {
+            try {
+                // Gọi sang API của TMDB được proxy qua phimapi
+                val tmdbUrl = "https://phimapi.com/tmdb/$tmdbType/$tmdbId"
+                val tmdbRes = app.get(tmdbUrl).parsedSafe<TmdbResponse>()
+                
+                // Bóc tách danh sách cast, giới hạn lấy 15 người đầu tiên cho nhẹ App
+                tmdbRes?.credits?.cast?.take(15)?.forEach { cast ->
+                    val actorName = cast.name ?: return@forEach
+                    // Thêm prefix tên miền ảnh của TMDB
+                    val actorImage = cast.profile_path?.let { "https://image.tmdb.org/t/p/w500$it" }
+                    val role = cast.character
+                    
+                    // Thêm vào danh sách Actors của CloudStream
+                    actorsList.add(ActorData(Actor(actorName, actorImage), roleString = role))
+                }
+            } catch (e: Exception) {
+                // Lỗi API thứ 3 thì bỏ qua để không làm sập trang load phim
             }
         }
-        // 3. Tag Chất lượng
-        // movie.quality?.let { movieTags.add(it) }
-        // 4. THÊM CATEGORY VÀO TAGS
-        movie.category?.forEach { cat ->
-            cat.name?.let { movieTags.add(it) }
-        }
-        val fullPlot = """
-            ${movie.content ?: "Không có nội dung mô tả."}
-        """.trimIndent()
+        // ==========================================
 
-        return if (isSeries) {  
+        return if (isSeries) {
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = finalPoster
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
-                // Add rating to metadata
-                val scoreValue = movie.tmdb?.vote_average
-                if (scoreValue != null && scoreValue > 0) {
-                    this.score = Score.from10(scoreValue)
-                }
+                this.showStatus = if (movie.status == "completed") ShowStatus.Completed else ShowStatus.Ongoing
+                
+                // THÊM DÒNG NÀY ĐỂ HIỂN THỊ DIỄN VIÊN
+                this.actors = actorsList.takeIf { it.isNotEmpty() }
             }
         } else {
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
@@ -186,14 +185,12 @@ class KKPExProvider : MainAPI() {
                 this.plot = fullPlot
                 this.tags = movieTags
                 
-                // Add rating to metadata
-                val scoreValue = movie.tmdb?.vote_average
-                if (scoreValue != null && scoreValue > 0) {
-                    this.score = Score.from10(scoreValue)
-                }
+                // THÊM DÒNG NÀY ĐỂ HIỂN THỊ DIỄN VIÊN
+                this.actors = actorsList.takeIf { it.isNotEmpty() }
             }
         }
     }
+    
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split("|||").forEach { item ->
@@ -228,12 +225,6 @@ data class KKListResponse(
     @param:JsonProperty("data") val data: KKListData? = null
 )
 
-data class KKItem(
-    @param:JsonProperty("name") val name: String? = null, 
-    @param:JsonProperty("slug") val slug: String? = null, 
-    @param:JsonProperty("poster_url") val poster_url: String? = null, 
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null
-)
 
 data class KKSearchResponse(
     @param:JsonProperty("data") val data: KKListData? = null
@@ -268,7 +259,6 @@ data class KKMovie(
 
 data class KKCategory(@param:JsonProperty("name") val name: String? = null)
 data class KKCountry(@param:JsonProperty("name") val name: String? = null)
-data class KKTMDB(@param:JsonProperty("vote_average") val vote_average: Double? = null)
 
 data class KKServer(
     @param:JsonProperty("server_name") val server_name: String? = null, 
@@ -279,3 +269,34 @@ data class KKEpisode(
     @param:JsonProperty("name") val name: String? = null, 
     @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
+// --- CẬP NHẬT LẠI KKTMDB ---
+data class KKTMDB(
+    @param:JsonProperty("type") val type: String? = null,
+    @param:JsonProperty("id") val id: String? = null,
+    @param:JsonProperty("vote_average") val vote_average: Double? = null
+)
+
+// --- CẬP NHẬT LẠI KKItem (Để lấy điểm ở màn hình danh sách) ---
+data class KKItem(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("slug") val slug: String? = null, 
+    @param:JsonProperty("poster_url") val poster_url: String? = null, 
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null // <-- Thêm dòng này
+)
+
+// --- THÊM DATA CLASS CHO TMDB ACTORS ---
+data class TmdbResponse(
+    @param:JsonProperty("credits") val credits: TmdbCredits? = null
+)
+
+data class TmdbCredits(
+    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
+)
+
+data class TmdbCast(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("character") val character: String? = null,
+    @param:JsonProperty("profile_path") val profile_path: String? = null
+)
+
