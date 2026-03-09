@@ -102,78 +102,73 @@ class OPExProvider : MainAPI() {
         } catch (e: Exception) { emptyList() }
     }
 
+
     override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
-        val response = app.get("$mainUrl/v1/api/phim/$slug").text
         
-        // --- PARSE JSON CHUẨN XÁC ---
-        val rootData = parseJson<OPRootResponse>(response)
-        val movie = rootData.data?.item ?: return null // Lấy dữ liệu phim từ data.item
+        // Gọi song song hoặc tuần tự cả 2 API
+        val movieResponse = app.get("$mainUrl/v1/api/phim/$slug").text
+        val peopleResponse = app.get("$mainUrl/v1/api/phim/$slug/peoples").text
         
-        // --- TRÍCH XUẤT THÔNG TIN CƠ BẢN ---
-        val movieName = movie.name ?: "OPhim"
+        val movieRoot = parseJson<OPRootResponse>(movieResponse)
+        val data = movieRoot.data ?: return null
+        val movie = data.item ?: return null
+        
+        // --- XỬ LÝ DIỄN VIÊN TỪ API PEOPLES ---
+        val peopleRoot = try { parseJson<OPPeopleResponse>(peopleResponse) } catch (e: Exception) { null }
+        val imgBase = peopleRoot?.data?.profileSizes?.h632 ?: "https://image.tmdb.org/t/p/h632"
+        
+        val actorsList = peopleRoot?.data?.peoples?.filter { 
+            it.department == "Acting" // Chỉ lấy diễn viên, bỏ qua hậu cần/âm thanh
+        }?.map { person ->
+            ActorData(
+                name = person.name ?: "",
+                roleString = person.character ?: "",
+                image = if (person.profilePath.isNullOrEmpty()) null else "$imgBase${person.profilePath}"
+            )
+        }
+
+        // --- CÁC THÔNG TIN CƠ BẢN ---
+        val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
+        val poster = data.seoOnPage?.seoSchema?.image ?: ""
         val movieYear = movie.year
         val movieContent = movie.content ?: ""
-        
-        // Lấy domain ảnh từ JSON nếu có, không thì dùng mặc định
-       val poster = rootData.data?.seoOnPage?.seoSchema?.image ?: ""
-        
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
-        // Xử lý xác định phim lẻ hay phim bộ (JSON trả về dạng "13 Tập" nên cần xóa chữ Tập đi để kiểm tra)
+        // Phân loại phim bộ/lẻ
         val epTotalNumber = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
         val isSingleEpisode = epTotalNumber == "1"
 
-        // --- XỬ LÝ TIẾN TRÌNH (CHỈ PHIM BỘ) ---
+        // Xử lý tag tiến trình và lồng tiếng
         if (!isSingleEpisode) {
             val epCurrent = movie.episode_current ?: ""
             val epTotal = movie.episode_total ?: ""
-            
-            val curr = epCurrent.replace("Tập", "", true).trim()
-            val total = epTotal.replace("Tập", "", true).trim()
-
-            val displayProgress = if (rawStatus.equals("ongoing", true)) {
+            val displayProgress = if (rawStatus.contains("ongoing", true)) {
+                val curr = epCurrent.replace("Tập", "", true).trim()
+                val total = epTotal.replace("Tập", "", true).trim()
                 if (curr.isNotEmpty() && total.isNotEmpty()) "$curr/$total Tập" else epCurrent
-            } else {
-                epCurrent 
-            }
+            } else epCurrent
             if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
         }
+        movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
+        movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
-        // --- CHỈ GIỮ LẠI LỒNG TIẾNG/THUYẾT MINH ---
-        movie.lang?.let { lang ->
-            lang.split("+").forEach {
-                val tag = it.trim()
-                if (!tag.contains("Vietsub", true)) {
-                    metaTags.add(tag)
-                }
-            }
-        }
-
-        // --- THÊM THỂ LOẠI ---
-        movie.category?.forEach { cat ->
-            cat.name?.let { metaTags.add(it) }
-        }
-
-        // --- GOM NHÓM TẬP PHIM TỪ DANH SÁCH SERVER ---
+        // Tập phim
         val epMap = mutableMapOf<String, MutableList<String>>()
         movie.episodes?.forEach { server ->
-            val serverName = server.server_name ?: "Server"
             server.server_data?.forEach { ep ->
-                val epName = ep.name ?: ""
-                val link = ep.link_m3u8 ?: ""
-                if (epName.isNotEmpty() && link.isNotEmpty()) {
-                    epMap.getOrPut(epName) { mutableListOf() }.add("$link|$serverName")
+                val n = ep.name ?: ""
+                val l = ep.link_m3u8 ?: ""
+                if (n.isNotEmpty() && l.isNotEmpty()) {
+                    epMap.getOrPut(n) { mutableListOf() }.add("$l|${server.server_name}")
                 }
             }
         }
-
         val episodeList = epMap.map { (epName, links) ->
             newEpisode(links.joinToString(",")) {
                 this.name = "Tập $epName"
-                val firstNum = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)
-                this.episode = firstNum?.toIntOrNull()
+                this.episode = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)?.toIntOrNull()
             }
         }.sortedBy { it.episode }
 
@@ -181,13 +176,13 @@ class OPExProvider : MainAPI() {
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
         val ratingValue = movie.tmdb?.vote_average ?: 0.0
 
-        // --- TRẢ VỀ RESPONSE CHUẨN ---
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
+                this.actors = actorsList // Đưa danh sách diễn viên vào đây
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
             }
         } else {
@@ -196,15 +191,13 @@ class OPExProvider : MainAPI() {
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
+                this.actors = actorsList // Đưa danh sách diễn viên vào đây
                 if (ratingValue > 0) this.score = Score.from10(ratingValue)
-                this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) {
-                    ShowStatus.Completed
-                } else {
-                    ShowStatus.Ongoing
-                }
+                this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
             }
         }
     }
+    
         
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
@@ -275,3 +268,24 @@ data class OPEpisode(
     @field:JsonProperty("name") val name: String? = null, 
     @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
+
+data class OPPeopleResponse(
+    @field:JsonProperty("data") val data: OPPeopleData? = null
+)
+
+data class OPPeopleData(
+    @field:JsonProperty("peoples") val peoples: List<OPPerson>? = null,
+    @field:JsonProperty("profile_sizes") val profileSizes: OPProfileSizes? = null
+)
+
+data class OPProfileSizes(
+    @field:JsonProperty("h632") val h632: String? = null // Dùng size này cho ảnh nét
+)
+
+data class OPPerson(
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("character") val character: String? = null,
+    @field:JsonProperty("profile_path") val profilePath: String? = null,
+    @field:JsonProperty("known_for_department") val department: String? = null
+)
+    
