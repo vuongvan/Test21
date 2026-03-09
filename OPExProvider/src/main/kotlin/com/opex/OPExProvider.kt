@@ -89,18 +89,42 @@ class OPExProvider : MainAPI() {
         return categories
     }
 
-    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
-        return try {
-            val response = app.get(url, timeout = 15).text
-            val data = parseJson<OPListResponse>(response)
-            val items = data.data?.items ?: data.items 
-            items?.map {
-                newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                    this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
+private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+    return try {
+        val response = app.get(url, timeout = 15).text
+        val data = parseJson<OPListResponse>(response)
+        val items = data.data?.items ?: data.items 
+        
+        items?.map { it ->
+            // 1. Tính toán điểm: Ưu tiên TMDB, nếu không có thì lấy IMDB
+            val tmdbScore = it.tmdb?.vote_average ?: 0.0
+            val imdbScore = it.imdb?.vote_average ?: 0.0
+            val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
+
+            newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
+                // Xử lý ảnh bìa
+                this.posterUrl = if (it.poster_url?.startsWith("http") == true) 
+                                    it.poster_url 
+                                 else 
+                                    "$imgDomain${it.poster_url ?: it.thumb_url}"
+                
+                // 2. HIỂN THỊ ĐIỂM (Rating) - Chỉ hiện nếu > 0
+                if (finalRating > 0) {
+                    // Cloudstream nhân 10 để hiển thị dạng số thập phân (ví dụ 7.3)
+                    this.score = (finalRating * 10).toInt()
                 }
-            } ?: emptyList()
-        } catch (e: Exception) { emptyList() }
-    }
+
+                // 3. HIỂN THỊ NHÃN (Vietsub / Thuyết minh)
+                this.quality = when {
+                    it.lang?.contains("Vietsub", ignoreCase = true) == true -> SearchQuality.Subbed
+                    it.lang?.contains("Thuyết minh", ignoreCase = true) == true -> SearchQuality.Dubbed
+                    else -> SearchQuality.HD
+                }
+            }
+        } ?: emptyList()
+    } catch (e: Exception) { emptyList() }
+}
+
 
 
     override suspend fun load(url: String): LoadResponse? {
@@ -292,4 +316,17 @@ data class OPPerson(
     @field:JsonProperty("character") val character: String? = null,
     @field:JsonProperty("profile_path") val profilePath: String? = null,
     @field:JsonProperty("known_for_department") val department: String? = null
+)
+data class OPListItem(
+    // ... các trường khác giữ nguyên ...
+    @field:JsonProperty("tmdb") val tmdb: OPTmdbInfo? = null,
+    @field:JsonProperty("imdb") val imdb: OPImdbInfo? = null
+)
+
+data class OPTmdbInfo(
+    @field:JsonProperty("vote_average") val voteAverage: Double? = null
+)
+
+data class OPImdbInfo(
+    @field:JsonProperty("vote_average") val voteAverage: Double? = null
 )
