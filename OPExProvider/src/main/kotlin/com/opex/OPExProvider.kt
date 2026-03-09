@@ -89,32 +89,31 @@ class OPExProvider : MainAPI() {
         return categories
     }
 
-private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+
+    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
     return try {
         val response = app.get(url, timeout = 15).text
         val data = parseJson<OPListResponse>(response)
         val items = data.data?.items ?: data.items 
         
         items?.map { it ->
-            // 1. Tính toán điểm: Ưu tiên TMDB, nếu không có thì lấy IMDB
+            // Lấy điểm số
             val tmdbScore = it.tmdb?.vote_average ?: 0.0
             val imdbScore = it.imdb?.vote_average ?: 0.0
             val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
             newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                // Xử lý ảnh bìa
                 this.posterUrl = if (it.poster_url?.startsWith("http") == true) 
                                     it.poster_url 
                                  else 
                                     "$imgDomain${it.poster_url ?: it.thumb_url}"
                 
-                // 2. HIỂN THỊ ĐIỂM (Rating) - Chỉ hiện nếu > 0
+                // SỬA LỖI: Assignment type mismatch (Dùng Score.from10)
                 if (finalRating > 0) {
-                    // Cloudstream nhân 10 để hiển thị dạng số thập phân (ví dụ 7.3)
-                    this.score = (finalRating * 10).toInt()
+                    this.score = Score.from10(finalRating)
                 }
 
-                // 3. HIỂN THỊ NHÃN (Vietsub / Thuyết minh)
+                // SỬA LỖI: Unresolved reference 'Subbed'/'Dubbed'
                 this.quality = when {
                     it.lang?.contains("Vietsub", ignoreCase = true) == true -> SearchQuality.Subbed
                     it.lang?.contains("Thuyết minh", ignoreCase = true) == true -> SearchQuality.Dubbed
@@ -122,8 +121,11 @@ private suspend fun getListFromUrl(url: String): List<SearchResponse> {
                 }
             }
         } ?: emptyList()
-    } catch (e: Exception) { emptyList() }
+    } catch (e: Exception) { 
+        emptyList() 
+    }
 }
+
 
 
 
@@ -318,15 +320,14 @@ data class OPPerson(
     @field:JsonProperty("known_for_department") val department: String? = null
 )
 data class OPListItem(
-    // ... các trường khác giữ nguyên ...
-    @field:JsonProperty("tmdb") val tmdb: OPTmdbInfo? = null,
-    @field:JsonProperty("imdb") val imdb: OPImdbInfo? = null
+    val name: String? = null,
+    val slug: String? = null,
+    val poster_url: String? = null,
+    val thumb_url: String? = null,
+    val lang: String? = null,  // Sửa lỗi Unresolved reference 'lang'
+    val tmdb: OPTmdb? = null,  // Sửa lỗi Unresolved reference 'tmdb'
+    val imdb: OPImdb? = null   // Sửa lỗi Unresolved reference 'imdb'
 )
 
-data class OPTmdbInfo(
-    @field:JsonProperty("vote_average") val voteAverage: Double? = null
-)
-
-data class OPImdbInfo(
-    @field:JsonProperty("vote_average") val voteAverage: Double? = null
-)
+data class OPTmdb(val vote_average: Double? = null)
+data class OPImdb(val vote_average: Double? = null)
