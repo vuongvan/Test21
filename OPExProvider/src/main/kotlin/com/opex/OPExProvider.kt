@@ -114,20 +114,20 @@ class OPExProvider : MainAPI() {
         val data = movieRoot.data ?: return null
         val movie = data.item ?: return null
 
-        // --- XỬ LÝ DIỄN VIÊN (ĐÃ SỬA THEO CẤU TRÚC MỚI CỦA CLOUDSTREAM) ---
+
+        // --- XỬ LÝ DIỄN VIÊN (BẢN CHUẨN XÁC NHẤT) ---
         val peopleRoot = try { parseJson<OPPeopleResponse>(peopleResponse) } catch (e: Exception) { null }
         val imgBase = peopleRoot?.data?.profileSizes?.h632 ?: "https://image.tmdb.org/t/p/h632"
         
         val actorsList = peopleRoot?.data?.peoples?.filter { 
             it.department == "Acting" 
         }?.map { person ->
-            // 1. Lấy link ảnh
             val img = if (person.profilePath.isNullOrEmpty()) null else "$imgBase${person.profilePath}"
             
-            // 2. Trả về đúng object ActorData với Actor và ActorRole
+            // Sử dụng roleString để chứa tên nhân vật
             ActorData(
                 actor = Actor(person.name ?: "", img),
-                role = person.character?.takeIf { it.isNotBlank() }?.let { ActorRole(it) }
+                roleString = person.character
             )
         }
         
