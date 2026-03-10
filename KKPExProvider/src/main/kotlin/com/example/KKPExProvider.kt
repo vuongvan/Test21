@@ -199,10 +199,12 @@ class KKPExProvider : MainAPI() {
         // ==========================================
         // THÊM LẠI LOGIC LẤY THÔNG TIN DIỄN VIÊN TỪ TMDB
         // ==========================================
+        // --- LOGIC LẤY DIỄN VIÊN TỔNG HỢP ---
         val actorsList = mutableListOf<ActorData>()
         val tmdbType = movie.tmdb?.type
         val tmdbId = movie.tmdb?.id
         
+        // Bước A: Cố gắng lấy diễn viên có ảnh từ TMDB trước
         if (!tmdbType.isNullOrEmpty() && !tmdbId.isNullOrEmpty()) {
             try {
                 val tmdbUrl = "https://phimapi.com/tmdb/$tmdbType/$tmdbId"
@@ -213,10 +215,19 @@ class KKPExProvider : MainAPI() {
                     val actorImage = cast.profile_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                     actorsList.add(ActorData(Actor(actorName, actorImage), roleString = cast.character))
                 }
-            } catch (e: Exception) {
-                // Lỗi API bên thứ 3 thì bỏ qua để không sập app
+            } catch (e: Exception) { }
+        }
+
+        // Bước B: Nếu TMDB không có dữ liệu, dùng danh sách tên từ API gốc (Trường "actor" trong JSON)
+        if (actorsList.isEmpty()) {
+            movie.actor?.forEach { name ->
+                if (name.isNotBlank()) {
+                    // Hiển thị tên với ảnh mặc định của CloudStream
+                    actorsList.add(ActorData(Actor(name, null), roleString = "Diễn viên"))
+                }
             }
         }
+        
         // ==========================================
 
         return if (isSeries) {  
@@ -234,6 +245,7 @@ class KKPExProvider : MainAPI() {
                 }
                 
                 // Add actors to metadata
+                this.trailerUrl = movie.trailer_url // Thêm dòng này
                 this.actors = actorsList.takeIf { it.isNotEmpty() }
             }
         } else {
