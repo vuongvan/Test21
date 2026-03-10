@@ -395,8 +395,7 @@ data class TmdbCreditsResponse(
 
 // Cho phim bộ
 data class TmdbTvInfo(
-    @param:JsonProperty("vote_average") val voteAverage: Double? = null,
-    @param:JsonProperty("seasons") val seasons: List<TmdbSeasonShort>? = null
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
 )
 
 // Cho phim lẻ
