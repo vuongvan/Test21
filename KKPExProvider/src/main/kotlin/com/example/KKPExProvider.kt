@@ -245,7 +245,7 @@ class KKPExProvider : MainAPI() {
                 }
                 
                 // Add actors to metadata
-                this.trailerUrl = movie.trailer_url // Thêm dòng này
+                 // Thêm dòng này
                 this.actors = actorsList.takeIf { it.isNotEmpty() }
             }
         } else {
