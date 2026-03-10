@@ -173,10 +173,11 @@ class KKPExProvider : MainAPI() {
             }
         }
 
-        // 4. THÊM CATEGORY VÀO TAGS
-        movie.category?.forEach { cat ->
+                // 4. THÊM CATEGORY VÀO TAGS
+        movie.category?.forEach { cat: KKCategory -> // Chỉ định rõ kiểu KKCategory
             cat.name?.let { movieTags.add(it) }
         }
+
         
         val fullPlot = """
             ${movie.content ?: "Không có nội dung mô tả."}
