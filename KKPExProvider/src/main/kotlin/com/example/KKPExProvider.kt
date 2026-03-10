@@ -35,7 +35,7 @@ class KKPExProvider : MainAPI() {
         if (url.isNullOrEmpty()) return null
         return if (url.startsWith("http")) url else "https://phimimg.com/$url"
     }
-}
+    
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         val response = app.get(url).text
@@ -79,7 +79,6 @@ class KKPExProvider : MainAPI() {
                     }
                 }
             }
-        }
         }
 
         
