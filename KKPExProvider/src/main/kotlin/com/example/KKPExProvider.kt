@@ -58,10 +58,9 @@ class KKPExProvider : MainAPI() {
 
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = poster
-                item.tmdb?.vote_average?.let { score ->
-                    if (score > 0) {
-                        this.rating = (score * 1000).toInt()
-                    }
+                val finalRating = item.tmdb?.vote_average ?: 0.0
+                if (finalRating > 0) {
+                    this.score = Score.from10(finalRating)
                 }
             }
         }
