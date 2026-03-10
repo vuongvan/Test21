@@ -222,7 +222,7 @@ class KKPExProvider : MainAPI() {
          // --- PHẦN LẤY DIỄN VIÊN ---
                 // --- PHẦN LẤY DIỄN VIÊN ---
         val tmdbId = movie.tmdb?.id
-        val tmdbType = if (isSeries) "tv" else "movie"
+        val tmdbType = movie.tmdb?.type
         
         // Lấy danh sách từ TMDB (có thể null)
         val tmdbActors = if (!tmdbId.isNullOrEmpty()) {
