@@ -107,61 +107,90 @@ class KKPExProvider : MainAPI() {
             }
         } ?: emptyList()
     }
-
+    
     override suspend fun load(url: String): LoadResponse? {
         val response = app.get(url).text
         val res = parseJson<KKDetailResponse>(response)
         val movie = res.movie ?: return null
         
-        val isSeries = movie.type != "single"
-        val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
-        val fullPlot = movie.content?.replace(Regex("<.*?>"), "")
-
-        // Xử lý danh sách tập phim
-        val episodesList = mutableListOf<Episode>()
+        val rawStatus = movie.status ?: ""
+        val episodeMap = mutableMapOf<String, MutableList<String>>()
         res.episodes?.forEach { server ->
+            val serverName = server.server_name ?: "HLS"
             server.server_data?.forEach { ep ->
-                episodesList.add(newEpisode(ep.link_m3u8 ?: "") {
-                    this.name = ep.name
-                })
+                val epName = ep.name ?: "1"
+                val existingLinks = episodeMap.getOrPut(epName) { mutableListOf() }
+                existingLinks.add("${ep.link_m3u8}::${serverName}")
             }
         }
 
-        // Tags thông tin
+        // FIX LỖI GOM NHÓM TẬP: Chỉ lấy số đầu tiên tìm thấy trong tên tập
+        val episodesList = episodeMap.map { (epName, links) ->
+            newEpisode(links.joinToString("|||")) {
+                this.name = "$epName"
+                val s = Regex("""(\d+)""").find(epName)?.value
+                this.episode = s?.toIntOrNull()
+            }
+        }.sortedBy { it.episode }
+
+        val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
         val movieTags = mutableListOf<String>()
-        movie.quality?.let { movieTags.add(it) }
-        movie.lang?.let { movieTags.add(it) }
         
-        // Tag tập phim (Logic fix 81/80)
+        // 1. Tag Trạng thái: Ongoing / Completed
+        //episode_total từ API
+        val totalEpisodes = movie.episode_total ?: ""
+
+// 2. Logic xác định phim bộ: 
+// Chỉ là phim bộ nếu type là series/hoathinh VÀ episode_total khác "1"
+        val isSeries = totalEpisodes != "1"
+        // --- CHỈ HIỂN THỊ ĐOẠN CODE THAY ĐỔI TRONG HÀM LOAD ---
+
         if (isSeries) {
             val isCompleted = movie.status == "completed"
             val totalEpisodes = movie.episode_total ?: ""
-            val tagEp = if (!isCompleted) "${episodesList.size}/$totalEpisodes" else movie.episode_current ?: ""
-            movieTags.add("Tập $tagEp")
-        }
+            val currentFromApi = movie.episode_current ?: ""
 
-        // Lấy thông tin diễn viên từ TMDB
-        val actorsList = mutableListOf<ActorData>()
-        if (!movie.tmdb?.type.isNullOrEmpty() && !movie.tmdb?.id.isNullOrEmpty()) {
-            try {
-                val tmdbUrl = "https://phimapi.com/tmdb/${movie.tmdb?.type}/${movie.tmdb?.id}"
-                val tmdbRes = app.get(tmdbUrl).parsedSafe<TmdbResponse>()
-                tmdbRes?.credits?.cast?.take(15)?.forEach { cast ->
-                    val actorName = cast.name ?: return@forEach
-                    val actorImage = cast.profile_path?.let { "https://image.tmdb.org/t/p/w500$it" }
-                    actorsList.add(ActorData(Actor(actorName, actorImage), roleString = cast.character))
-                }
-            } catch (e: Exception) {}
+            val tagEp = if (!isCompleted) {
+                // Nếu chưa hoàn thành: (Số tập thực tế)/(Tổng tập dự kiến)
+                "$currentFromApi/$totalEpisodes"
+            } else {
+                // Nếu đã hoàn thành: Lấy thẳng giá trị episode_current, không cắt gọt
+                currentFromApi
+            }
+            
+            movieTags.add("$tagEp")
         }
+        
+        // 2. KIỂM TRA NGÔN NGỮ (Lồng Tiếng / Thuyết Minh)
+        movie.lang?.let { lang ->
+            if (lang.contains("Thuyết Minh", ignoreCase = true)) {
+                movieTags.add("Thuyết Minh")
+            } else if (lang.contains("Lồng Tiếng", ignoreCase = true)) {
+                movieTags.add("Lồng Tiếng")
+            }
+        }
+        // 3. Tag Chất lượng
+        // movie.quality?.let { movieTags.add(it) }
+        // 4. THÊM CATEGORY VÀO TAGS
+        movie.category?.forEach { cat ->
+            cat.name?.let { movieTags.add(it) }
+        }
+        val fullPlot = """
+            ${movie.content ?: "Không có nội dung mô tả."}
+        """.trimIndent()
 
-        return if (isSeries) {
+        return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = finalPoster
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.showStatus = if (movie.status == "completed") ShowStatus.Completed else ShowStatus.Ongoing
-                this.actors = actorsList.takeIf { it.isNotEmpty() }
+                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
+                // Add rating to metadata
+                val scoreValue = movie.tmdb?.vote_average
+                if (scoreValue != null && scoreValue > 0) {
+                    this.score = Score.from10(scoreValue)
+                }
             }
         } else {
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
@@ -169,7 +198,12 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.actors = actorsList.takeIf { it.isNotEmpty() }
+                
+                // Add rating to metadata
+                val scoreValue = movie.tmdb?.vote_average
+                if (scoreValue != null && scoreValue > 0) {
+                    this.score = Score.from10(scoreValue)
+                }
             }
         }
     }
