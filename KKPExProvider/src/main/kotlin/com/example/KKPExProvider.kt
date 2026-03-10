@@ -103,12 +103,25 @@ class KKPExProvider : MainAPI() {
         val url = "$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20"
         val response = app.get(url).text
         val data = parseJson<KKSearchResponse>(response)
-        return data.data?.items?.map {
-            newMovieSearchResponse(it.name ?: "", "$mainUrl/phim/${it.slug}", TvType.Movie) {
-                this.posterUrl = fixPosterUrl(it.poster_url ?: it.thumb_url)
+        
+        return data.data?.items?.mapNotNull { item ->
+            val title = item.name ?: return@mapNotNull null
+            val href = "$mainUrl/phim/${item.slug}"
+            
+            // Dùng Movie hay TvSeries ở đây đều được, quan trọng là phần bên trong { }
+            newMovieSearchResponse(title, href, TvType.Movie) {
+                this.posterUrl = fixPosterUrl(item.poster_url ?: item.thumb_url)
+                
+                // --- THÊM ĐOẠN NÀY ĐỂ HIỆN ĐIỂM KHI TÌM KIẾM ---
+                val rating = item.tmdb?.vote_average ?: 0.0
+                if (rating > 0) {
+                    this.score = Score.from10(rating)
+                }
+                // ----------------------------------------------
             }
         } ?: emptyList()
     }
+    
     
     
         
