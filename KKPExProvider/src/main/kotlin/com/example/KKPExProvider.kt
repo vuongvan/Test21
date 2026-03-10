@@ -286,8 +286,15 @@ data class KKMovie(
     @param:JsonProperty("quality") val quality: String? = null,
     @param:JsonProperty("actor") val actor: List<String>? = null,
     @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
+    @param:JsonProperty("category") val category: List<KKCategory>? = null, // Thêm lại dòng này
+    @param:JsonProperty("country") val country: List<KKCountry>? = null,   // Thêm lại dòng này
     @param:JsonProperty("lang") val lang: String? = null
 )
+
+// Định nghĩa 2 class còn thiếu này:
+data class KKCategory(@param:JsonProperty("name") val name: String? = null)
+data class KKCountry(@param:JsonProperty("name") val name: String? = null)
+
 
 data class KKServer(
     @param:JsonProperty("server_name") val server_name: String? = null, 
