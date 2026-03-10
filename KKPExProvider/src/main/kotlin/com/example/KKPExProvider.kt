@@ -238,7 +238,21 @@ class KKPExProvider : MainAPI() {
         val finalActors = tmdbActors ?: backupActors ?: emptyList()
         
         // ==========================================
-
+        //Score
+        var tmdbLiveScore: Double? = null
+        if (!tmdbId.isNullOrEmpty()) {
+            try {
+                val tmdbInfoUrl = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
+                if (isSeries) {
+                    val tvInfo = app.get(tmdbInfoUrl).parsedSafe<TmdbTvInfo>()
+                    tmdbLiveScore = tvInfo?.voteAverage
+                } else {
+                    val movieInfo = app.get(tmdbInfoUrl).parsedSafe<TmdbMovieInfo>()
+                    tmdbLiveScore = movieInfo?.voteAverage
+                }
+            } catch (e: Exception) {}
+        }
+        //---------
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = finalPoster
@@ -246,7 +260,7 @@ class KKPExProvider : MainAPI() {
                 this.plot = fullPlot
                 this.tags = movieTags
                 this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
-                this.score = movie.tmdb?.vote_average?.let { Score.from10(it) }
+                this.score = tmdbLiveScore?.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
             }
         } else {
@@ -257,7 +271,7 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.score = movie.tmdb?.vote_average?.let { Score.from10(it) }
+                this.score = tmdbLiveScore?.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
             }
        }
@@ -378,3 +392,15 @@ data class TmdbCast(
 data class TmdbCreditsResponse(
     val cast: List<TmdbCast>? = null
 )
+
+// Cho phim bộ
+data class TmdbTvInfo(
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null,
+    @param:JsonProperty("seasons") val seasons: List<TmdbSeasonShort>? = null
+)
+
+// Cho phim lẻ
+data class TmdbMovieInfo(
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
+)
+
