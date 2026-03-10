@@ -220,29 +220,22 @@ class KKPExProvider : MainAPI() {
         // THÊM LẠI LOGIC LẤY THÔNG TIN DIỄN VIÊN TỪ TMDB
         // ==========================================
          // --- PHẦN LẤY DIỄN VIÊN ---
+                // --- PHẦN LẤY DIỄN VIÊN ---
         val tmdbId = movie.tmdb?.id
         val tmdbType = if (isSeries) "tv" else "movie"
         
-        // Gọi hàm đã viết ở trên
-        val actorsList = if (!tmdbId.isNullOrEmpty()) {
+        // Lấy danh sách từ TMDB (có thể null)
+        val tmdbActors = if (!tmdbId.isNullOrEmpty()) {
             fetchTmdbCast(tmdbType, tmdbId) 
         } else null
 
-        // Nếu TMDB không có, lấy danh sách tên từ API gốc của bạn làm phương án dự phòng
-        val finalActors = actorsList ?: movie.actor?.map { 
+        // Chuyển đổi list dự phòng từ API gốc nếu TMDB không có
+        val backupActors = movie.actor?.map { 
             ActorData(Actor(it, null), roleString = "Diễn viên") 
         }
-        
 
-        // Bước B: Nếu TMDB không có dữ liệu, dùng danh sách tên từ API gốc (Trường "actor" trong JSON)
-        if (actorsList.isEmpty()) {
-            movie.actor?.forEach { name ->
-                if (name.isNotBlank()) {
-                    // Hiển thị tên với ảnh mặc định của CloudStream
-                    actorsList.add(ActorData(Actor(name, null), roleString = "Diễn viên"))
-                }
-            }
-        }
+        // Ưu tiên TMDB, nếu không có thì lấy backup, nếu không có nữa thì rỗng
+        val finalActors = tmdbActors ?: backupActors ?: emptyList()
         
         // ==========================================
 
@@ -254,7 +247,7 @@ class KKPExProvider : MainAPI() {
                 this.tags = movieTags
                 this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
                 this.score = movie.tmdb?.vote_average?.let { Score.from10(it) }
-                this.actors = actorsList.takeIf { it.isNotEmpty() }
+                this.actors = finalActors
             }
         } else {
             // Lấy dữ liệu link từ tập đầu tiên cho phim lẻ
@@ -265,7 +258,7 @@ class KKPExProvider : MainAPI() {
                 this.plot = fullPlot
                 this.tags = movieTags
                 this.score = movie.tmdb?.vote_average?.let { Score.from10(it) }
-                this.actors = actorsList.takeIf { it.isNotEmpty() }
+                this.actors = finalActors
             }
        }
                 
@@ -386,8 +379,3 @@ data class TmdbCreditsResponse(
     val cast: List<TmdbCast>? = null
 )
 
-data class TmdbCast(
-    val name: String? = null,
-    val character: String? = null,
-    val profile_path: String? = null
-)
