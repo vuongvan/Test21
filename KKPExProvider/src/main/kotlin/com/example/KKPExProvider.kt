@@ -32,6 +32,7 @@ class KKPExProvider : MainAPI() {
     }
 
     override var mainUrl = "https://phimapi.com"
+    private val tmdbApiKey ="661c6c1d38ed79fb876dc2eba6ffbfa0"
     override var name = "KK Phim"
     override val hasMainPage = true
     override var lang = "vi"
@@ -71,7 +72,22 @@ class KKPExProvider : MainAPI() {
             }
         }
     }
-        
+
+    private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
+    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
+    return try {
+        val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
+        res?.cast?.take(15)?.map { cast ->
+            val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
+            ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
+        }
+    } catch (e: Exception) {
+        null
+    }
+    }
+    
+
+
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
@@ -203,24 +219,20 @@ class KKPExProvider : MainAPI() {
         // ==========================================
         // THÊM LẠI LOGIC LẤY THÔNG TIN DIỄN VIÊN TỪ TMDB
         // ==========================================
-        // --- LOGIC LẤY DIỄN VIÊN TỔNG HỢP ---
-        val actorsList = mutableListOf<ActorData>()
-        val tmdbType = movie.tmdb?.type
+         // --- PHẦN LẤY DIỄN VIÊN ---
         val tmdbId = movie.tmdb?.id
+        val tmdbType = if (isSeries) "tv" else "movie"
         
-        // Bước A: Cố gắng lấy diễn viên có ảnh từ TMDB trước
-        if (!tmdbType.isNullOrEmpty() && !tmdbId.isNullOrEmpty()) {
-            try {
-                val tmdbUrl = "https://phimapi.com/tmdb/$tmdbType/$tmdbId"
-                val tmdbRes = app.get(tmdbUrl).parsedSafe<TmdbResponse>()
-                
-                tmdbRes?.credits?.cast?.take(15)?.forEach { cast ->
-                    val actorName = cast.name ?: return@forEach
-                    val actorImage = cast.profile_path?.let { "https://image.tmdb.org/t/p/w500$it" }
-                    actorsList.add(ActorData(Actor(actorName, actorImage), roleString = cast.character))
-                }
-            } catch (e: Exception) { }
+        // Gọi hàm đã viết ở trên
+        val actorsList = if (!tmdbId.isNullOrEmpty()) {
+            fetchTmdbCast(tmdbType, tmdbId) 
+        } else null
+
+        // Nếu TMDB không có, lấy danh sách tên từ API gốc của bạn làm phương án dự phòng
+        val finalActors = actorsList ?: movie.actor?.map { 
+            ActorData(Actor(it, null), roleString = "Diễn viên") 
         }
+        
 
         // Bước B: Nếu TMDB không có dữ liệu, dùng danh sách tên từ API gốc (Trường "actor" trong JSON)
         if (actorsList.isEmpty()) {
@@ -368,4 +380,14 @@ data class TmdbCast(
     @param:JsonProperty("name") val name: String? = null,
     @param:JsonProperty("character") val character: String? = null,
     @param:JsonProperty("profile_path") val profile_path: String? = null
+)
+// Cần thêm các Data Class này ở cuối file để parse JSON tự động
+data class TmdbCreditsResponse(
+    val cast: List<TmdbCast>? = null
+)
+
+data class TmdbCast(
+    val name: String? = null,
+    val character: String? = null,
+    val profile_path: String? = null
 )
