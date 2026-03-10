@@ -203,6 +203,7 @@ class KKPExProvider : MainAPI() {
         return true
     }
 }
+    }
 
 // --- AUTHENTICATION MODELS ---
 data class LoginRequest(
@@ -224,13 +225,20 @@ data class KKListResponse(
     @param:JsonProperty("data") val data: KKListData? = null
 )
 
-
 data class KKSearchResponse(
     @param:JsonProperty("data") val data: KKListData? = null
 )
 
 data class KKListData(
     @param:JsonProperty("items") val items: List<KKItem>? = null
+)
+
+data class KKItem(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("slug") val slug: String? = null, 
+    @param:JsonProperty("poster_url") val poster_url: String? = null, 
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null
 )
 
 data class KKDetailResponse(
@@ -253,11 +261,8 @@ data class KKMovie(
     @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
     @param:JsonProperty("category") val category: List<KKCategory>? = null,
     @param:JsonProperty("country") val country: List<KKCountry>? = null,
-    @param:JsonProperty("lang") val lang: String? = null // Trường này nhận giá trị "Lồng Tiếng"
+    @param:JsonProperty("lang") val lang: String? = null
 )
-
-data class KKCategory(@param:JsonProperty("name") val name: String? = null)
-data class KKCountry(@param:JsonProperty("name") val name: String? = null)
 
 data class KKServer(
     @param:JsonProperty("server_name") val server_name: String? = null, 
@@ -268,23 +273,16 @@ data class KKEpisode(
     @param:JsonProperty("name") val name: String? = null, 
     @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
-// --- CẬP NHẬT LẠI KKTMDB ---
+
+data class KKCategory(@param:JsonProperty("name") val name: String? = null)
+data class KKCountry(@param:JsonProperty("name") val name: String? = null)
+
 data class KKTMDB(
     @param:JsonProperty("type") val type: String? = null,
     @param:JsonProperty("id") val id: String? = null,
     @param:JsonProperty("vote_average") val vote_average: Double? = null
 )
 
-// --- CẬP NHẬT LẠI KKItem (Để lấy điểm ở màn hình danh sách) ---
-data class KKItem(
-    @param:JsonProperty("name") val name: String? = null, 
-    @param:JsonProperty("slug") val slug: String? = null, 
-    @param:JsonProperty("poster_url") val poster_url: String? = null, 
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
-    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null // <-- Thêm dòng này
-)
-
-// --- THÊM DATA CLASS CHO TMDB ACTORS ---
 data class TmdbResponse(
     @param:JsonProperty("credits") val credits: TmdbCredits? = null
 )
