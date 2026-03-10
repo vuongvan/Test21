@@ -247,87 +247,111 @@ class OPExProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
+data class OPListResponse(
+    @field:JsonProperty("items") val items: List<OPItem>? = null, 
+    @field:JsonProperty("data") val data: OPListData? = null
+)
+
+data class OPListData(
+    @field:JsonProperty("items") val items: List<OPItem>? = null
+)
+
+data class OPItem(
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("slug") val slug: String? = null,
+    @JsonProperty("origin_name") val origin_name: String? = null,
+    @JsonProperty("poster_url") val poster_url: String? = null,
+    @JsonProperty("thumb_url") val thumb_url: String? = null,
+    @JsonProperty("_id") val _id: String? = null,
+    @JsonProperty("modified") val modified: OPModified? = null, // Lỗi ở đây đã được sửa
+    @JsonProperty("year") val year: Int? = null,
+    @JsonProperty("lang") val lang: String? = null,
+    @JsonProperty("quality") val quality: String? = null,
+    @JsonProperty("tmdb") val tmdb: OPTmdb? = null,
+    @JsonProperty("imdb") val imdb: OPImdbListItem? = null
+)
+
+// Class thiếu khiến bạn bị báo lỗi Unresolved reference 'OPModified'
 data class OPModified(
-    @param:JsonProperty("time") val time: String? = null
+    @JsonProperty("time") val time: String? = null
 )
 
+// Class bổ trợ cho điểm IMDB
 data class OPImdbListItem(
-    @param:JsonProperty("vote_average") val vote_average: Double? = null
+    @JsonProperty("vote_average") val vote_average: Double? = null
 )
 
+
+
+// Root JSON chứa "status", "data"
 data class OPRootResponse(
-    @param:JsonProperty("data") val data: OPDataContent? = null
+    @field:JsonProperty("data") val data: OPDataContent? = null
 )
 
 data class OPDataContent(
-    @param:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null,
-    @param:JsonProperty("item") val item: OPItemDetail? = null
+    @field:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null,
+    @field:JsonProperty("item") val item: OPItemDetail? = null
 )
 
 data class OPSeoOnPage(
-    @param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null
+    @field:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null
 )
 
 data class OPSeoSchema(
-    @param:JsonProperty("image") val image: String? = null
+    @field:JsonProperty("image") val image: String? = null
 )
 
 data class OPItemDetail(
-    @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("content") val content: String? = null,
-    @param:JsonProperty("status") val status: String? = null,
-    @param:JsonProperty("year") val year: Int? = null,
-    @param:JsonProperty("episode_current") val episode_current: String? = null,
-    @param:JsonProperty("episode_total") val episode_total: String? = null,
-    @param:JsonProperty("lang") val lang: String? = null,
-    @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
-    @param:JsonProperty("category") val category: List<OPCat>? = null,
-    @param:JsonProperty("episodes") val episodes: List<OPServer>? = null
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("content") val content: String? = null,
+    @field:JsonProperty("status") val status: String? = null,
+    @field:JsonProperty("year") val year: Int? = null,
+    @field:JsonProperty("episode_current") val episode_current: String? = null,
+    @field:JsonProperty("episode_total") val episode_total: String? = null,
+    @field:JsonProperty("lang") val lang: String? = null,
+    @field:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
+    @field:JsonProperty("category") val category: List<OPCat>? = null,
+    @field:JsonProperty("episodes") val episodes: List<OPServer>? = null
 )
 
-data class OPTmdb(@param:JsonProperty("vote_average") val vote_average: Double? = null)
-data class OPCat(@param:JsonProperty("name") val name: String? = null)
-
+data class OPTmdb(@field:JsonProperty("vote_average") val vote_average: Double? = null)
+data class OPCat(@field:JsonProperty("name") val name: String? = null)
 data class OPServer(
-    @param:JsonProperty("server_name") val server_name: String? = null, 
-    @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null
+    @field:JsonProperty("server_name") val server_name: String? = null, 
+    @field:JsonProperty("server_data") val server_data: List<OPEpisode>? = null
 )
-
 data class OPEpisode(
-    @param:JsonProperty("name") val name: String? = null, 
-    @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
+    @field:JsonProperty("name") val name: String? = null, 
+    @field:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
 
 data class OPPeopleResponse(
-    @param:JsonProperty("data") val data: OPPeopleData? = null
+    @field:JsonProperty("data") val data: OPPeopleData? = null
 )
 
 data class OPPeopleData(
-    @param:JsonProperty("peoples") val peoples: List<OPPerson>? = null,
-    @param:JsonProperty("profile_sizes") val profileSizes: OPProfileSizes? = null
+    @field:JsonProperty("peoples") val peoples: List<OPPerson>? = null,
+    @field:JsonProperty("profile_sizes") val profileSizes: OPProfileSizes? = null
 )
 
 data class OPProfileSizes(
-    @param:JsonProperty("h632") val h632: String? = null
+    @field:JsonProperty("h632") val h632: String? = null // Dùng size này cho ảnh nét
 )
 
 data class OPPerson(
-    @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("character") val character: String? = null,
-    @param:JsonProperty("profile_path") val profilePath: String? = null,
-    @param:JsonProperty("known_for_department") val department: String? = null
+    @field:JsonProperty("name") val name: String? = null,
+    @field:JsonProperty("character") val character: String? = null,
+    @field:JsonProperty("profile_path") val profilePath: String? = null,
+    @field:JsonProperty("known_for_department") val department: String? = null
 )
-
 data class OPListItem(
-    @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("slug") val slug: String? = null,
-    @param:JsonProperty("poster_url") val poster_url: String? = null,
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
-    @param:JsonProperty("lang") val lang: String? = null,
-    @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
-    @param:JsonProperty("imdb") val imdb: OPImdb? = null
-)
+    val name: String? = null,
+    val slug: String? = null,
+    val poster_url: String? = null,
+    val thumb_url: String? = null,
+    val lang: String? = null,  // Sửa lỗi Unresolved reference 'lang'
+    val tmdb: OPTmdb? = null,  // Sửa lỗi Unresolved reference 'tmdb'
+    val imdb: OPImdb? = null   // Sửa lỗi Unresolved reference 'imdb'
+    )
 
-data class OPImdb(
-    @param:JsonProperty("vote_average") val vote_average: Double? = null
-)
+data class OPImdb(val vote_average: Double? = null)
