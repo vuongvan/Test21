@@ -5,6 +5,10 @@ import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.loadExtractor
+
 import java.util.Locale
 import android.content.Context
 
@@ -230,48 +234,59 @@ class KKPExProvider : MainAPI() {
         
         // ==========================================
 
-        return if (isSeries) {  
+                return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = finalPoster
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.showStatus = if (rawStatus.equals("completed", ignoreCase = true) || rawStatus.equals("hoàn thành", ignoreCase = true)) ShowStatus.Completed else ShowStatus.Ongoing
-                
-                // Add rating to metadata
-                val scoreValue = movie.tmdb?.vote_average
-                if (scoreValue != null && scoreValue > 0) {
-                    this.score = Score.from10(scoreValue)
-                }
-                
-                // Add actors to metadata
-                 // Thêm dòng này
+                this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
+                this.score = movie.tmdb?.vote_average?.let { Score.from10(it) }
                 this.actors = actorsList.takeIf { it.isNotEmpty() }
             }
         } else {
-            newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, episodesList.firstOrNull()?.data ?: "") {
+            // Lấy dữ liệu link từ tập đầu tiên cho phim lẻ
+            val movieData = episodesList.firstOrNull()?.data ?: ""
+            newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, movieData) {
                 this.posterUrl = finalPoster
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                
-                // Add rating to metadata
-                val scoreValue = movie.tmdb?.vote_average
-                if (scoreValue != null && scoreValue > 0) {
-                    this.score = Score.from10(scoreValue)
-                }
-                
-                // Add actors to metadata
+                this.score = movie.tmdb?.vote_average?.let { Score.from10(it) }
                 this.actors = actorsList.takeIf { it.isNotEmpty() }
             }
-        }
+       }
+                
     }
     
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        override suspend fun loadLinks(
+        data: String, 
+        isCasting: Boolean, 
+        subtitleCallback: (SubtitleFile) -> Unit, 
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
         if (data.isEmpty()) return false
-        callback.invoke(newExtractorLink("HLS", "HLS", data, type = ExtractorLinkType.M3U8))
+
+        // Tách các link server khác nhau (ngăn cách bởi |||)
+        data.split("|||").forEach { serverData ->
+            // Tách link và tên server (ngăn cách bởi ::)
+            val parts = serverData.split("::")
+            val url = parts.getOrNull(0) ?: return@forEach
+            val name = parts.getOrNull(1) ?: "HLS"
+
+            callback.invoke(
+                newExtractorLink(
+                    name,
+                    name,
+                    url,
+                    referer = mainUrl, // Thêm referer để tránh lỗi 403
+                    type = ExtractorLinkType.M3U8
+                )
+            )
+        }
         return true
     }
+
 }
 
 // --- DATA MODELS ---
