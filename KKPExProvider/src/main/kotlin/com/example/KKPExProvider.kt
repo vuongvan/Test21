@@ -259,7 +259,7 @@ class KKPExProvider : MainAPI() {
                 
     }
     
-        override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String, 
         isCasting: Boolean, 
         subtitleCallback: (SubtitleFile) -> Unit, 
@@ -267,25 +267,28 @@ class KKPExProvider : MainAPI() {
     ): Boolean {
         if (data.isEmpty()) return false
 
-        // Tách các link server khác nhau (ngăn cách bởi |||)
+        // 1. Tách các server (ngăn cách bởi |||)
         data.split("|||").forEach { serverData ->
-            // Tách link và tên server (ngăn cách bởi ::)
+            // 2. Tách link và tên (ngăn cách bởi ::)
             val parts = serverData.split("::")
             val url = parts.getOrNull(0) ?: return@forEach
-            val name = parts.getOrNull(1) ?: "HLS"
+            val serverName = parts.getOrNull(1) ?: "HLS"
 
+            // 3. Gửi link sạch cho trình phát
             callback.invoke(
                 newExtractorLink(
-                    name,
-                    name,
+                    serverName,
+                    serverName,
                     url,
-                    referer = mainUrl, // Thêm referer để tránh lỗi 403
-                    type = ExtractorLinkType.M3U8
+                    type = ExtractorLinkType.M3U8,
+                    // Nếu cần Referer, chúng ta truyền qua headers như thế này:
+                    headers = mapOf("Referer" to mainUrl) 
                 )
             )
         }
         return true
     }
+    
 
 }
 
