@@ -32,7 +32,7 @@ class KKPExProvider : MainAPI() {
     }
 
     override var mainUrl = "https://phimapi.com"
-    private val tmdbApiKey ="661c6c1d38ed79fb876dc2eba6ffbfa0"
+    private val tmdbApiKey = "YOUR_API_KEY_HERE" // Giữ nguyên chữ này để lệnh sed tìm thấy
     override var name = "KK Phim"
     override val hasMainPage = true
     override var lang = "vi"
