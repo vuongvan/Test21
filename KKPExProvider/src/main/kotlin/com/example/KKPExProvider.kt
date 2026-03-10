@@ -239,19 +239,18 @@ class KKPExProvider : MainAPI() {
         
         // ==========================================
         //Score
+         // --- LẤY ĐIỂM SỐ VÀ DIỄN VIÊN TRỰC TIẾP TỪ TMDB ---
         var tmdbLiveScore: Double? = null
+        var tmdbActors: List<ActorData>? = null
+        
+        val tmdbId = movie.tmdb?.id
+        val tmdbType = if (isSeries) "tv" else "movie"
+
         if (!tmdbId.isNullOrEmpty()) {
             try {
-                val tmdbInfoUrl = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
-                if (isSeries) {
-                    val tvInfo = app.get(tmdbInfoUrl).parsedSafe<TmdbTvInfo>()
-                    tmdbLiveScore = tvInfo?.voteAverage
-                } else {
-                    val movieInfo = app.get(tmdbInfoUrl).parsedSafe<TmdbMovieInfo>()
-                    tmdbLiveScore = movieInfo?.voteAverage
-                }
-            } catch (e: Exception) {}
-        }
+                // 1. Gọi lấy Điểm số
+                val infoUrl = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
+                tmdbLiveScore = app.get(infoUrl).parsedSafe<TmdbInfo>()?.voteAverage
         //---------
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
@@ -393,13 +392,6 @@ data class TmdbCreditsResponse(
     val cast: List<TmdbCast>? = null
 )
 
-// Cho phim bộ
-data class TmdbTvInfo(
+data class TmdbInfo(
     @param:JsonProperty("vote_average") val voteAverage: Double? = null
 )
-
-// Cho phim lẻ
-data class TmdbMovieInfo(
-    @param:JsonProperty("vote_average") val voteAverage: Double? = null
-)
-
