@@ -117,7 +117,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
             items?.filter { it.episode_current?.contains("trailer", true) != true }?.map { it ->
                 val scoreVal = it.tmdb?.vote_average ?: it.imdb?.vote_average ?: 0.0
                 newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                    this.posterUrl = fixImgUrl(it.poster_url ?: it.thumb_url, cdn)
+                    this.posterUrl = fixImgUrl(it.thumb_url ?: it.poster_url, cdn)
                     if (scoreVal > 0) this.score = Score.from10(scoreVal)
                     this.quality = if (it.quality?.uppercase() == "CAM") SearchQuality.Cam else SearchQuality.HD
                 }
@@ -211,7 +211,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         return true
     }
         
-    override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
+    override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=30")
 }
 
 // --- DATA CLASSES (Giữ nguyên) ---
