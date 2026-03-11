@@ -81,10 +81,13 @@ class OPExProvider : MainAPI() {
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
     }
 
+    
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
-        categories.add(Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"))
+        
+        // Fix cho mục Mới Cập Nhật (API này thường dùng dấu ? vì nó chưa có param nào)
+        categories.add(Pair("$mainUrl/v1/api/home?sort_field=year&sort_type=desc&page=$page", "Mới Cập Nhật"))
         
         val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
         val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
@@ -95,13 +98,23 @@ class OPExProvider : MainAPI() {
             val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
             if (categoryPath.isNotEmpty()) {
                 val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
-                val categoryUrl = if (categoryPath.startsWith("http")) categoryPath else "$mainUrl/$categoryPath?page=$page"
+                
+                // --- LOGIC SỬA LỖI PHÂN TRANG TẠI ĐÂY ---
+                val separator = if (categoryPath.contains("?")) "&" else "?"
+                val categoryUrl = if (categoryPath.startsWith("http")) {
+                    // Nếu là link full, kiểm tra xem có chứa dấu ? chưa để thêm &page hoặc ?page
+                    val fullSeparator = if (categoryPath.contains("?")) "&" else "?"
+                    "$categoryPath${fullSeparator}page=$page"
+                } else {
+                    "$mainUrl/$categoryPath${separator}page=$page"
+                }
+                
                 categories.add(Pair(categoryUrl, categoryName))
             }
         }
         return categories
     }
-
+    
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
             val response = app.get(url, timeout = 15).text
