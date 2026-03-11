@@ -1,4 +1,4 @@
-package com.opex
+package com.opex // Sửa chữ 'p' viết thường
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.Score
@@ -46,32 +46,35 @@ class OPExProvider : MainAPI() {
             else -> PREF_CATEGORY_1_NAME
         }
     }
+
     override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
     override val hasMainPage = true
     override var lang = "vi"
     override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
+    
+    // API KEY TMDB - Nhớ thay key thật vào đây
     private val tmdbApiKey = "YOUR_API_KEY_HERE"
 
-private suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
-    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
-    return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
-}
-
-private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
-    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
-    return try {
-        val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
-        res?.cast?.take(15)?.map { cast ->
-            val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
-            ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
-        }
-    } catch (e: Exception) { null }
-}
-
-
     private val imgDomain = "https://img.ophim.live/uploads/movies/"
+
+    // --- CÁC HÀM HỖ TRỢ TMDB ---
+    private suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
+        return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
+    }
+
+    private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
+        return try {
+            val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
+            res?.cast?.take(15)?.map { cast ->
+                val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
+                ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
+            }
+        } catch (e: Exception) { null }
+    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val items = getCustomCategories(page)
@@ -81,11 +84,8 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
-        
-        // Default category
         categories.add(Pair("$mainUrl/v1/api/home", "Mới Cập Nhật"))
         
-        // Parallel lists for category configuration
         val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
         val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
         val defaultPaths = listOf("v1/api/danh-sach/phim-le", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
@@ -95,18 +95,12 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
             val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
             if (categoryPath.isNotEmpty()) {
                 val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
-                val categoryUrl = if (categoryPath.startsWith("http")) {
-                    categoryPath
-                } else {
-                    "$mainUrl/$categoryPath?page=$page"
-                }
+                val categoryUrl = if (categoryPath.startsWith("http")) categoryPath else "$mainUrl/$categoryPath?page=$page"
                 categories.add(Pair(categoryUrl, categoryName))
             }
         }
-        
         return categories
     }
-
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
@@ -115,27 +109,14 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
             val items = data.data?.items ?: data.items 
             
             items?.map { it ->
-                // Lấy điểm số an toàn (Double)
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
-
-                // Hiển thị tên phim kèm ngôn ngữ để người dùng dễ chọn
-                val displayName = if (!it.lang.isNullOrBlank()) "${it.name}" else it.name ?: ""
+                val displayName = it.name ?: ""
 
                 newMovieSearchResponse(displayName, "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                    this.posterUrl = if (it.poster_url?.startsWith("http") == true) {
-                        it.poster_url 
-                    } else {
-                        "$imgDomain${it.poster_url ?: it.thumb_url}"
-                    }
-                    
-                    // Gán điểm Rating (Cloudstream tự hiểu hệ số 10)
-                    if (finalRating > 0) {
-                        this.score = Score.from10(finalRating)
-                    }
-
-                    // Gán chất lượng: Ưu tiên lấy từ API, nếu lỗi thì mặc định HD
+                    this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
+                    if (finalRating > 0) this.score = Score.from10(finalRating)
                     this.quality = when (it.quality?.uppercase()) {
                         "CAM" -> SearchQuality.Cam
                         "SD" -> SearchQuality.SD
@@ -143,9 +124,7 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
                     }
                 }
             } ?: emptyList()
-        } catch (e: Exception) { 
-            emptyList() 
-        }
+        } catch (e: Exception) { emptyList() }
     }
 
     override suspend fun load(url: String): LoadResponse? {
@@ -155,22 +134,17 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
         val data = movieRoot.data ?: return null
         val movie = data.item ?: return null
 
-        // Xác định loại phim và ID TMDB
-        // Lưu ý: data class OPTmdb cần có biến id: String? hoặc Int?
-        val tmdbId = movie.tmdb?.id?.toString() // Bạn nhớ thêm 'val id: Any?' vào class OPTmdb nhé
+        val tmdbId = movie.tmdb?.id?.toString()
         val epTotalNumber = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
         val isSingleEpisode = epTotalNumber == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
-        // Lấy dữ liệu TMDB song song để tối ưu tốc độ
         val actorsList = tmdbId?.let { fetchTmdbCast(tmdbType, it) }
         val tmdbExtra = tmdbId?.let { fetchTmdbDetails(tmdbType, it) }
 
-        // --- THÔNG TIN CƠ BẢN ---
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val poster = data.seoOnPage?.seoSchema?.image ?: ""
         val movieYear = movie.year
-        // Ưu tiên nội dung từ TMDB vì nó thường đầy đủ hơn
         val movieContent = tmdbExtra?.overview ?: movie.content ?: ""
         
         val metaTags = mutableListOf<String>()
@@ -189,7 +163,6 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
         movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
-        // Xử lý Tập phim
         val epMap = mutableMapOf<String, MutableList<String>>()
         movie.episodes?.forEach { server ->
             server.server_data?.forEach { ep ->
@@ -210,8 +183,6 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
 
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
-        
-        // Ưu tiên điểm từ TMDB API, nếu không có thì lấy từ OPhim
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
 
         return if (tvType == TvType.Movie) {
@@ -235,7 +206,6 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
             }
         }
     }
-    
         
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         data.split(",").forEach { info ->
@@ -250,7 +220,9 @@ private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorD
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
-    data class OPListResponse(
+// --- DATA CLASSES (Đã fix warning @param:) ---
+
+data class OPListResponse(
     @param:JsonProperty("items") val items: List<OPItem>? = null, 
     @param:JsonProperty("data") val data: OPListData? = null
 )
@@ -274,30 +246,18 @@ data class OPItem(
     @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null
 )
 
-data class OPModified(
-    @param:JsonProperty("time") val time: String? = null
-)
+data class OPModified(@param:JsonProperty("time") val time: String? = null)
+data class OPImdbListItem(@param:JsonProperty("vote_average") val vote_average: Double? = null)
 
-data class OPImdbListItem(
-    @param:JsonProperty("vote_average") val vote_average: Double? = null
-)
-
-data class OPRootResponse(
-    @param:JsonProperty("data") val data: OPDataContent? = null
-)
+data class OPRootResponse(@param:JsonProperty("data") val data: OPDataContent? = null)
 
 data class OPDataContent(
     @param:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null,
     @param:JsonProperty("item") val item: OPItemDetail? = null
 )
 
-data class OPSeoOnPage(
-    @param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null
-)
-
-data class OPSeoSchema(
-    @param:JsonProperty("image") val image: String? = null
-)
+data class OPSeoOnPage(@param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null)
+data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
 
 data class OPItemDetail(
     @param:JsonProperty("name") val name: String? = null,
@@ -314,12 +274,10 @@ data class OPItemDetail(
 
 data class OPTmdb(
     @param:JsonProperty("vote_average") val vote_average: Double? = null,
-    @param:JsonProperty("id") val id: Any? = null // Thêm dòng này để lấy ID gọi qua TMDB API
+    @param:JsonProperty("id") val id: Any? = null 
 )
 
-data class OPCat(
-    @param:JsonProperty("name") val name: String? = null
-)
+data class OPCat(@param:JsonProperty("name") val name: String? = null)
 
 data class OPServer(
     @param:JsonProperty("server_name") val server_name: String? = null, 
@@ -331,52 +289,14 @@ data class OPEpisode(
     @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
 
-data class OPPeopleResponse(
-    @param:JsonProperty("data") val data: OPPeopleData? = null
-)
-
-data class OPPeopleData(
-    @param:JsonProperty("peoples") val peoples: List<OPPerson>? = null,
-    @param:JsonProperty("profile_sizes") val profileSizes: OPProfileSizes? = null
-)
-
-data class OPProfileSizes(
-    @param:JsonProperty("h632") val h632: String? = null
-)
-
-data class OPPerson(
-    @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("character") val character: String? = null,
-    @param:JsonProperty("profile_path") val profilePath: String? = null,
-    @param:JsonProperty("known_for_department") val department: String? = null
-)
-
-data class OPListItem(
-    @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("slug") val slug: String? = null,
-    @param:JsonProperty("poster_url") val poster_url: String? = null,
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
-    @param:JsonProperty("lang") val lang: String? = null,
-    @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
-    @param:JsonProperty("imdb") val imdb: OPImdb? = null
-)
-
-data class OPImdb(
-    @param:JsonProperty("vote_average") val vote_average: Double? = null
-)
 // --- TMDB DATA CLASSES ---
-data class TmdbCreditsResponse(
-    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
-)
-
+data class TmdbCreditsResponse(@param:JsonProperty("cast") val cast: List<TmdbCast>? = null)
 data class TmdbCast(
     @param:JsonProperty("name") val name: String? = null,
     @param:JsonProperty("profile_path") val profile_path: String? = null,
     @param:JsonProperty("character") val character: String? = null
 )
-
 data class TmdbDetailResponse(
     @param:JsonProperty("vote_average") val vote_average: Double? = null,
     @param:JsonProperty("overview") val overview: String? = null
 )
-
