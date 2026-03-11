@@ -75,6 +75,18 @@ class OPExProvider : MainAPI() {
             }
         } catch (e: Exception) { null }
     }
+    
+    private fun fixImgUrl(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        if (url.startsWith("http")) return url
+        val cleanPath = url.removePrefix("/")
+        return if (cleanPath.startsWith("uploads/")) {
+            "https://img.ophim.live/$cleanPath"
+        } else {
+            "https://img.ophim.live/uploads/movies/$cleanPath"
+        }
+    }
+    
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val items = getCustomCategories(page)
@@ -115,32 +127,36 @@ class OPExProvider : MainAPI() {
         return categories
     }
     
-private suspend fun getListFromUrl(url: String): List<SearchResponse> {
-    return try {
-        val response = app.get(url, timeout = 15).text
-        val data = parseJson<OPListResponse>(response)
-        val items = data.data?.items ?: data.items 
-        
-        // LỌC: Loại bỏ phim nếu episode_current là "Trailer"
-        items?.filter { 
-            it.episode_current?.contains("trailer", ignoreCase = true) != true 
-        }?.map { it ->
-            val tmdbScore = it.tmdb?.vote_average ?: 0.0
-            val imdbScore = it.imdb?.vote_average ?: 0.0
-            val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
+    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+        return try {
+            val response = app.get(url, timeout = 15).text
+            val data = parseJson<OPListResponse>(response)
+            val items = data.data?.items ?: data.items 
+            
+            items?.filter { 
+                // Lọc bỏ Trailer dựa trên episode_current
+                it.episode_current?.contains("trailer", true) != true 
+            }?.map { it ->
+                val tmdbScore = it.tmdb?.vote_average ?: 0.0
+                val imdbScore = it.imdb?.vote_average ?: 0.0
+                val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
-            newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
-                if (finalRating > 0) this.score = Score.from10(finalRating)
-                this.quality = when (it.quality?.uppercase()) {
-                    "CAM" -> SearchQuality.Cam
-                    "SD" -> SearchQuality.SD
-                    else -> SearchQuality.HD
+                newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
+                    // Ưu tiên poster_url, nếu không có thì lấy thumb_url
+                    val rawImg = if (!it.poster_url.isNullOrBlank()) it.poster_url else it.thumb_url
+                    this.posterUrl = fixImgUrl(rawImg)
+                    
+                    if (finalRating > 0) this.score = Score.from10(finalRating)
+                    this.quality = when (it.quality?.uppercase()) {
+                        "CAM" -> SearchQuality.Cam
+                        "SD" -> SearchQuality.SD
+                        else -> SearchQuality.HD
+                    }
                 }
-            }
-        } ?: emptyList()
-    } catch (e: Exception) { emptyList() }
-}
+            } ?: emptyList()
+        } catch (e: Exception) { emptyList() }
+    }
+    
 
     
 
