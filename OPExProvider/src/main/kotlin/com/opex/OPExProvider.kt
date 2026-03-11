@@ -60,15 +60,10 @@ class OPExProvider : MainAPI() {
         if (url.isNullOrBlank()) return null
         if (url.startsWith("http")) return url
         if (domain.isNullOrBlank()) return null
-        
         val cleanDomain = domain.removeSuffix("/")
         val cleanPath = url.removePrefix("/")
-        
-        return if (cleanPath.startsWith("uploads/")) {
-            "$cleanDomain/$cleanPath"
-        } else {
-            "$cleanDomain/uploads/movies/$cleanPath"
-        }
+        return if (cleanPath.startsWith("uploads/")) "$cleanDomain/$cleanPath" 
+               else "$cleanDomain/uploads/movies/$cleanPath"
     }
 
     private suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
@@ -95,7 +90,6 @@ class OPExProvider : MainAPI() {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
         categories.add(Pair("$mainUrl/v1/api/home?sort_field=year&sort_type=desc&page=$page", "Mới Cập Nhật"))
-        
         for (i in 1..6) {
             val path = prefs.getString(getPreferenceKey(i), "").orEmpty()
             if (path.isNotEmpty()) {
@@ -113,7 +107,6 @@ class OPExProvider : MainAPI() {
             val data = parseJson<OPListResponse>(response)
             val cdn = data.data?.APP_DOMAIN_CDN_IMAGE ?: data.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items 
-            
             items?.filter { it.episode_current?.contains("trailer", true) != true }?.map { it ->
                 val scoreVal = it.tmdb?.vote_average ?: it.imdb?.vote_average ?: 0.0
                 newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
@@ -143,11 +136,9 @@ class OPExProvider : MainAPI() {
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val poster = fixImgUrl(movie.poster_url ?: movie.thumb_url, cdn) ?: data.seoOnPage?.seoSchema?.image ?: ""
         
-        // --- KHÔI PHỤC TAGS: Lồng tiếng, Thuyết minh, Thể loại ---
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
-        // Xử lý tiến độ tập phim (Ví dụ: 28/28 Tập)
         if (!isSingleEpisode) {
             val epCurrent = movie.episode_current ?: ""
             val epTotal = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
@@ -156,24 +147,26 @@ class OPExProvider : MainAPI() {
                 metaTags.add(if (epTotal.isNotEmpty() && !cleanCurrent.contains("/")) "$cleanCurrent/$epTotal Tập" else epCurrent)
             }
         }
-
-        // Tách Vietsub / Thuyết minh
-        movie.lang?.split("+")?.forEach { 
-            val trimLang = it.trim()
-            if (trimLang.isNotEmpty()) metaTags.add(trimLang) 
-        }
-        
-        // Thêm thể loại vào Tags
+        movie.lang?.split("+")?.forEach { val t = it.trim(); if (t.isNotEmpty()) metaTags.add(t) }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
-        val episodeList = movie.episodes?.flatMap { server ->
-            server.server_data?.map { ep ->
-                newEpisode("${ep.link_m3u8}|${server.server_name}") {
-                    this.name = if (isSingleEpisode) "Full" else "Tập ${ep.name}"
-                    this.episode = ep.name?.filter { it.isDigit() }?.toIntOrNull()
-                }
-            } ?: emptyList()
-        }?.sortedBy { it.episode } ?: emptyList()
+        // --- FIX CHỌN SERVER: Gộp Vietsub/Thuyết minh ---
+        val episodesMap = mutableMapOf<String, MutableList<String>>()
+        movie.episodes?.forEach { server ->
+            val sName = server.server_name ?: "Server"
+            server.server_data?.forEach { ep ->
+                val epName = ep.name ?: "Full"
+                val list = episodesMap.getOrPut(epName) { mutableListOf() }
+                list.add("${ep.link_m3u8}|$sName")
+            }
+        }
+
+        val episodeList = episodesMap.map { (name, links) ->
+            newEpisode(links.joinToString(",")) {
+                this.name = if (isSingleEpisode) "Full" else "Tập $name"
+                this.episode = name.filter { it.isDigit() }.toIntOrNull()
+            }
+        }.sortedBy { it.episode }
 
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val plotClean = (movie.content ?: tmdbExtra?.overview ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
@@ -195,7 +188,6 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                // --- KHÔI PHỤC TRẠNG THÁI ---
                 this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) 
                     ShowStatus.Completed else ShowStatus.Ongoing
             }
@@ -215,7 +207,7 @@ class OPExProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
-// --- DATA CLASSES (Giữ nguyên các trường đã fix) ---
+// --- DATA CLASSES (Giữ nguyên) ---
 data class OPListResponse(
     @param:JsonProperty("data") val data: OPListData? = null,
     @param:JsonProperty("items") val items: List<OPItem>? = null,
@@ -247,7 +239,7 @@ data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
 data class OPItemDetail(
     @param:JsonProperty("name") val name: String? = null,
     @param:JsonProperty("content") val content: String? = null,
-    @param:JsonProperty("status") val status: String? = null, // Đã thêm để check Completed/Ongoing
+    @param:JsonProperty("status") val status: String? = null,
     @param:JsonProperty("year") val year: Int? = null,
     @param:JsonProperty("episode_current") val episode_current: String? = null,
     @param:JsonProperty("episode_total") val episode_total: String? = null,
