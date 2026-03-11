@@ -57,8 +57,6 @@ class OPExProvider : MainAPI() {
     // API KEY TMDB - Nhớ thay key thật vào đây
     private val tmdbApiKey = "YOUR_API_KEY_HERE"
 
-    private val imgDomain = "https://imhg.ophim.live/uploads/movies/"
-
     // --- CÁC HÀM HỖ TRỢ TMDB ---
     private suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
@@ -76,14 +74,20 @@ class OPExProvider : MainAPI() {
         } catch (e: Exception) { null }
     }
     
-    // Đã sửa: Truyền domain động vào để xử lý
+    // --- ĐÃ SỬA: LẤY DOMAIN TỪ JSON, KHÔNG DÙNG MẶC ĐỊNH ---
     private fun fixImgUrl(url: String?, domain: String?): String? {
         if (url.isNullOrBlank()) return null
         if (url.startsWith("http")) return url
-        if (domain.isNullOrBlank()) return null // Trả về null nếu không có domain để kiểm tra
-        val base = domain.removeSuffix("/")
+        if (domain.isNullOrBlank()) return null // Không có domain -> null (để bạn test JSON)
+        
+        val cleanDomain = domain.removeSuffix("/")
         val cleanPath = url.removePrefix("/")
-        return "$base/$cleanPath"
+        
+        return if (cleanPath.startsWith("uploads/")) {
+            "$cleanDomain/$cleanPath"
+        } else {
+            "$cleanDomain/uploads/movies/$cleanPath"
+        }
     }
     
 
@@ -130,7 +134,9 @@ class OPExProvider : MainAPI() {
         return try {
             val response = app.get(url, timeout = 15).text
             val data = parseJson<OPListResponse>(response)
-            val dynamicDomain = data.data?.pathImage // Lấy domain động từ JSON
+            
+            // --- ĐÃ SỬA: Lấy CDN từ APP_DOMAIN_CDN_IMAGE ---
+            val cdnDomain = data.data?.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items 
             
             items?.filter { 
@@ -142,8 +148,9 @@ class OPExProvider : MainAPI() {
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
                 newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
+                    // Ưu tiên poster_url, nếu không có thì lấy thumb_url
                     val rawImg = if (!it.poster_url.isNullOrBlank()) it.poster_url else it.thumb_url
-                    this.posterUrl = fixImgUrl(rawImg, dynamicDomain) // Xử lý bằng domain động
+                    this.posterUrl = fixImgUrl(rawImg, cdnDomain) // Truyền cdnDomain vào
                     
                     if (finalRating > 0) this.score = Score.from10(finalRating)
                     this.quality = when (it.quality?.uppercase()) {
@@ -164,8 +171,10 @@ class OPExProvider : MainAPI() {
         val movieResponse = app.get("$mainUrl/v1/api/phim/$slug").text
         val movieRoot = parseJson<OPRootResponse>(movieResponse)
         val data = movieRoot.data ?: return null
-        val dynamicDomain = data.pathImage // Lấy domain động
         val movie = data.item ?: return null
+        
+        // --- ĐÃ SỬA: Lấy CDN từ APP_DOMAIN_CDN_IMAGE ---
+        val cdnDomain = data.APP_DOMAIN_CDN_IMAGE
 
         val tmdbId = movie.tmdb?.id?.toString()
         val epTotalNumber = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
@@ -177,9 +186,9 @@ class OPExProvider : MainAPI() {
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         
-        // Ưu tiên dùng poster_url/thumb_url với domain động, nếu không có mới lấy seoSchema
+        // --- ĐÃ SỬA: Ghép ảnh bằng domain lấy được, nếu lỗi thì lấy seoSchema ---
         val rawImg = if (!movie.poster_url.isNullOrBlank()) movie.poster_url else movie.thumb_url
-        val poster = fixImgUrl(rawImg, dynamicDomain) ?: data.seoOnPage?.seoSchema?.image ?: ""
+        val poster = fixImgUrl(rawImg, cdnDomain) ?: data.seoOnPage?.seoSchema?.image ?: ""
         
         val movieYear = movie.year
         val movieContent = movie.content ?: tmdbExtra?.overview ?: ""
@@ -257,7 +266,7 @@ class OPExProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
-// --- DATA CLASSES ---
+// --- DATA CLASSES (Đã fix warning @param:) ---
 
 data class OPListResponse(
     @param:JsonProperty("items") val items: List<OPItem>? = null, 
@@ -266,7 +275,8 @@ data class OPListResponse(
 
 data class OPListData(
     @param:JsonProperty("items") val items: List<OPItem>? = null,
-    @param:JsonProperty("pathImage") val pathImage: String? = null // Đã thêm
+    // ĐÃ THÊM:
+    @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null
 )
 
 data class OPItem(
@@ -283,7 +293,7 @@ data class OPItem(
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
     @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null,
     @param:JsonProperty("status") val status: String? = null,
-    @param:JsonProperty("episode_current") val episode_current: String? = null
+    @param:JsonProperty("episode_current") val episode_current: String? = null // Trường quan trọng ở đây//
 )
 
 data class OPModified(@param:JsonProperty("time") val time: String? = null)
@@ -294,7 +304,8 @@ data class OPRootResponse(@param:JsonProperty("data") val data: OPDataContent? =
 data class OPDataContent(
     @param:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null,
     @param:JsonProperty("item") val item: OPItemDetail? = null,
-    @param:JsonProperty("pathImage") val pathImage: String? = null // Đã thêm
+    // ĐÃ THÊM:
+    @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null
 )
 
 data class OPSeoOnPage(@param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null)
@@ -310,8 +321,6 @@ data class OPItemDetail(
     @param:JsonProperty("lang") val lang: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
     @param:JsonProperty("category") val category: List<OPCat>? = null,
-    @param:JsonProperty("poster_url") val poster_url: String? = null, // Đã thêm để lấy poster động
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null, // Đã thêm để lấy thumb động
     @param:JsonProperty("episodes") val episodes: List<OPServer>? = null
 )
 
