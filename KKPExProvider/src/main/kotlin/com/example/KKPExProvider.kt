@@ -90,7 +90,11 @@ class KKPExProvider : MainAPI() {
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
+        
+        // Fix cứng phim mới cập nhật
         categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"))
         
         val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
@@ -102,16 +106,27 @@ class KKPExProvider : MainAPI() {
             val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
             if (categoryPath.isNotEmpty()) {
                 val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
-                val categoryUrl = if (categoryPath.startsWith("http")) {
-                    "$categoryPath?page=$page"
+                
+                // Xác định base URL
+                val baseUrl = if (categoryPath.startsWith("http")) {
+                    categoryPath
                 } else {
-                    "${mainUrl}/v1/api/$categoryPath?page=$page"
+                    "${mainUrl}/v1/api/$categoryPath"
                 }
-                categories.add(Pair(categoryUrl, categoryName))
+
+                // XỬ LÝ NỐI ? THEO CHUẨN URL
+                val finalUrl = if (baseUrl.contains("?")) {
+                    "$baseUrl&page=$page" // Nếu đã có ? thì dùng &
+                } else {
+                    "$baseUrl?page=$page" // Nếu chưa có ? thì dùng ?
+                }
+                
+                categories.add(Pair(finalUrl, categoryName))
             }
         }
         return categories
-    }
+        }
+        
     
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val items = getCustomCategories(page)
