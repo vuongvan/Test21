@@ -121,7 +121,7 @@ class OPExProvider : MainAPI() {
             val data = parseJson<OPListResponse>(response)
             val items = data.data?.items ?: data.items 
             
-            items?.map { it ->
+            items?.filter { it.status?.contains("trailer", ignoreCase = true) == false }?.map { it ->
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
@@ -256,7 +256,8 @@ data class OPItem(
     @param:JsonProperty("lang") val lang: String? = null,
     @param:JsonProperty("quality") val quality: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
-    @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null
+    @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null,
+    @param:JsonProperty("status") val status: String? = null //
 )
 
 data class OPModified(@param:JsonProperty("time") val time: String? = null)
