@@ -115,32 +115,33 @@ class OPExProvider : MainAPI() {
         return categories
     }
     
-    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
-        return try {
-            val response = app.get(url, timeout = 15).text
-            val data = parseJson<OPListResponse>(response)
-            val items = data.data?.items ?: data.items 
-            
-            // LOGIC LỌC TRAILER MỚI: Chỉ loại bỏ nếu chứa chữ "trailer" (không bị lỗi với null)
-            items?.filter { 
-                it.status?.contains("trailer", true) != true
-            }?.map { it ->
-                val tmdbScore = it.tmdb?.vote_average ?: 0.0
-                val imdbScore = it.imdb?.vote_average ?: 0.0
-                val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
+private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+    return try {
+        val response = app.get(url, timeout = 15).text
+        val data = parseJson<OPListResponse>(response)
+        val items = data.data?.items ?: data.items 
+        
+        // LỌC: Loại bỏ phim nếu episode_current là "Trailer"
+        items?.filter { 
+            it.episode_current?.contains("trailer", ignoreCase = true) != true 
+        }?.map { it ->
+            val tmdbScore = it.tmdb?.vote_average ?: 0.0
+            val imdbScore = it.imdb?.vote_average ?: 0.0
+            val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
 
-                newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                    this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
-                    if (finalRating > 0) this.score = Score.from10(finalRating)
-                    this.quality = when (it.quality?.uppercase()) {
-                        "CAM" -> SearchQuality.Cam
-                        "SD" -> SearchQuality.SD
-                        else -> SearchQuality.HD
-                    }
+            newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
+                this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
+                if (finalRating > 0) this.score = Score.from10(finalRating)
+                this.quality = when (it.quality?.uppercase()) {
+                    "CAM" -> SearchQuality.Cam
+                    "SD" -> SearchQuality.SD
+                    else -> SearchQuality.HD
                 }
-            } ?: emptyList()
-        } catch (e: Exception) { emptyList() }
+            }
+        } ?: emptyList()
+    } catch (e: Exception) { emptyList() }
 }
+
     
 
     override suspend fun load(url: String): LoadResponse? {
@@ -260,7 +261,8 @@ data class OPItem(
     @param:JsonProperty("quality") val quality: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
     @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null,
-    @param:JsonProperty("status") val status: String? = null //
+    @param:JsonProperty("status") val status: String? = null,
+    @param:JsonProperty("episode_current") val episode_current: String? = null // Trường quan trọng ở đây//
 )
 
 data class OPModified(@param:JsonProperty("time") val time: String? = null)
