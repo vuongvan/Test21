@@ -121,13 +121,13 @@ class OPExProvider : MainAPI() {
             val data = parseJson<OPListResponse>(response)
             val items = data.data?.items ?: data.items 
             
+            // Lọc bỏ phim Trailer ngay tại đây
             items?.filter { it.status?.contains("trailer", ignoreCase = true) == false }?.map { it ->
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
-                val displayName = it.name ?: ""
 
-                newMovieSearchResponse(displayName, "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
+                newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
                     this.posterUrl = if (it.poster_url?.startsWith("http") == true) it.poster_url else "$imgDomain${it.poster_url ?: it.thumb_url}"
                     if (finalRating > 0) this.score = Score.from10(finalRating)
                     this.quality = when (it.quality?.uppercase()) {
@@ -139,6 +139,7 @@ class OPExProvider : MainAPI() {
             } ?: emptyList()
         } catch (e: Exception) { emptyList() }
     }
+    
 
     override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
