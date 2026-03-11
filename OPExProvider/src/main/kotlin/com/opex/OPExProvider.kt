@@ -162,7 +162,7 @@ private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val poster = data.seoOnPage?.seoSchema?.image ?: ""
         val movieYear = movie.year
-        val movieContent = tmdbExtra?.overview ?: movie.content ?: ""
+        val movieContent = movie.content ?: tmdbExtra?.overview ?: ""
         
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
