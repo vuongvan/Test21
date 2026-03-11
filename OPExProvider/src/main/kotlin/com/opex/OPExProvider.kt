@@ -52,6 +52,24 @@ class OPExProvider : MainAPI() {
     override var lang = "vi"
     override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
+    private val tmdbApiKey = "YOUR_API_KEY_HERE"
+
+private suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
+    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
+    return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
+}
+
+private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
+    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
+    return try {
+        val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
+        res?.cast?.take(15)?.map { cast ->
+            val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
+            ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
+        }
+    } catch (e: Exception) { null }
+}
+
 
     private val imgDomain = "https://img.ophim.live/uploads/movies/"
 
@@ -129,67 +147,49 @@ class OPExProvider : MainAPI() {
             emptyList() 
         }
     }
-    
-    
-
 
     override suspend fun load(url: String): LoadResponse? {
         val slug = url.split("/").last()
-        
-        // Gọi song song hoặc tuần tự cả 2 API
         val movieResponse = app.get("$mainUrl/v1/api/phim/$slug").text
-        val peopleResponse = app.get("$mainUrl/v1/api/phim/$slug/peoples").text
-        
         val movieRoot = parseJson<OPRootResponse>(movieResponse)
         val data = movieRoot.data ?: return null
         val movie = data.item ?: return null
 
+        // Xác định loại phim và ID TMDB
+        // Lưu ý: data class OPTmdb cần có biến id: String? hoặc Int?
+        val tmdbId = movie.tmdb?.id?.toString() // Bạn nhớ thêm 'val id: Any?' vào class OPTmdb nhé
+        val epTotalNumber = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
+        val isSingleEpisode = epTotalNumber == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
+        val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
-        // --- XỬ LÝ DIỄN VIÊN (BẢN CHUẨN XÁC NHẤT) ---
-        val peopleRoot = try { parseJson<OPPeopleResponse>(peopleResponse) } catch (e: Exception) { null }
-        val imgBase = peopleRoot?.data?.profileSizes?.h632 ?: "https://image.tmdb.org/t/p/h632"
-        
-        val actorsList = peopleRoot?.data?.peoples?.filter { 
-            it.department == "Acting" 
-        }?.map { person ->
-            val img = if (person.profilePath.isNullOrEmpty()) null else "$imgBase${person.profilePath}"
-            
-            // Sử dụng roleString để chứa tên nhân vật
-            ActorData(
-                actor = Actor(person.name ?: "", img),
-                roleString = person.character
-            )
-        }
-        
-        
+        // Lấy dữ liệu TMDB song song để tối ưu tốc độ
+        val actorsList = tmdbId?.let { fetchTmdbCast(tmdbType, it) }
+        val tmdbExtra = tmdbId?.let { fetchTmdbDetails(tmdbType, it) }
 
-        // --- CÁC THÔNG TIN CƠ BẢN ---
+        // --- THÔNG TIN CƠ BẢN ---
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val poster = data.seoOnPage?.seoSchema?.image ?: ""
         val movieYear = movie.year
-        val movieContent = movie.content ?: ""
+        // Ưu tiên nội dung từ TMDB vì nó thường đầy đủ hơn
+        val movieContent = tmdbExtra?.overview ?: movie.content ?: ""
+        
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
-        // Phân loại phim bộ/lẻ
-        val epTotalNumber = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
-        val isSingleEpisode = epTotalNumber == "1"
-
-        // Xử lý tag tiến trình và lồng tiếng
         if (!isSingleEpisode) {
             val epCurrent = movie.episode_current ?: ""
-            val epTotal = movie.episode_total ?: ""
             val displayProgress = if (rawStatus.contains("ongoing", true)) {
                 val curr = epCurrent.replace("Tập", "", true).trim()
-                val total = epTotal.replace("Tập", "", true).trim()
+                val total = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
                 if (curr.isNotEmpty() && total.isNotEmpty()) "$curr/$total Tập" else epCurrent
             } else epCurrent
             if (displayProgress.isNotEmpty()) metaTags.add(displayProgress)
         }
+        
         movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
-        // Tập phim
+        // Xử lý Tập phim
         val epMap = mutableMapOf<String, MutableList<String>>()
         movie.episodes?.forEach { server ->
             server.server_data?.forEach { ep ->
@@ -200,16 +200,19 @@ class OPExProvider : MainAPI() {
                 }
             }
         }
+        
         val episodeList = epMap.map { (epName, links) ->
             newEpisode(links.joinToString(",")) {
-                this.name = "Tập $epName"
+                this.name = if (isSingleEpisode) "Full" else "Tập $epName"
                 this.episode = """(\d+)""".toRegex().find(epName)?.groupValues?.get(1)?.toIntOrNull()
             }
         }.sortedBy { it.episode }
 
         val tvType = if (isSingleEpisode) TvType.Movie else TvType.TvSeries
         val plotClean = movieContent.replace(Regex("<.*?>"), "").replace("\\n", "\n")
-        val ratingValue = movie.tmdb?.vote_average ?: 0.0
+        
+        // Ưu tiên điểm từ TMDB API, nếu không có thì lấy từ OPhim
+        val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
 
         return if (tvType == TvType.Movie) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
@@ -217,8 +220,8 @@ class OPExProvider : MainAPI() {
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
-                this.actors = actorsList // Đưa danh sách diễn viên vào đây
-                if (ratingValue > 0) this.score = Score.from10(ratingValue)
+                this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, tvType, episodeList) {
@@ -226,8 +229,8 @@ class OPExProvider : MainAPI() {
                 this.plot = plotClean
                 this.year = movieYear
                 this.tags = metaTags
-                this.actors = actorsList // Đưa danh sách diễn viên vào đây
-                if (ratingValue > 0) this.score = Score.from10(ratingValue)
+                this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
             }
         }
@@ -311,6 +314,7 @@ data class OPItemDetail(
 
 data class OPTmdb(
     @param:JsonProperty("vote_average") val vote_average: Double? = null
+    @param:JsonProperty("id") val id: Any? = null // Thêm dòng này để lấy ID gọi qua TMDB API
 )
 
 data class OPCat(
@@ -360,3 +364,19 @@ data class OPListItem(
 data class OPImdb(
     @param:JsonProperty("vote_average") val vote_average: Double? = null
 )
+// --- TMDB DATA CLASSES ---
+data class TmdbCreditsResponse(
+    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
+)
+
+data class TmdbCast(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("profile_path") val profile_path: String? = null,
+    @param:JsonProperty("character") val character: String? = null
+)
+
+data class TmdbDetailResponse(
+    @param:JsonProperty("vote_average") val vote_average: Double? = null,
+    @param:JsonProperty("overview") val overview: String? = null
+)
+
