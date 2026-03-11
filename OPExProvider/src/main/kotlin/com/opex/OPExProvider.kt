@@ -313,7 +313,7 @@ data class OPItemDetail(
 )
 
 data class OPTmdb(
-    @param:JsonProperty("vote_average") val vote_average: Double? = null
+    @param:JsonProperty("vote_average") val vote_average: Double? = null,
     @param:JsonProperty("id") val id: Any? = null // Thêm dòng này để lấy ID gọi qua TMDB API
 )
 
