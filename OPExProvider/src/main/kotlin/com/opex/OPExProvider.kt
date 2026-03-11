@@ -56,7 +56,6 @@ class OPExProvider : MainAPI() {
     
     private val tmdbApiKey = "YOUR_API_KEY_HERE"
 
-    // Hàm fix ảnh dùng APP_DOMAIN_CDN_IMAGE
     private fun fixImgUrl(url: String?, domain: String?): String? {
         if (url.isNullOrBlank()) return null
         if (url.startsWith("http")) return url
@@ -77,11 +76,17 @@ class OPExProvider : MainAPI() {
         return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
     }
 
-    private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<Actor>? {
+    // --- ĐÃ FIX: Trả về List<ActorData>? ---
+    private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
         val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
         return try {
             val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
-            res?.cast?.take(15)?.map { Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }) }
+            res?.cast?.take(15)?.map { 
+                ActorData(
+                    actor = Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }),
+                    roleString = it.character // Thêm vai diễn vào đây
+                )
+            }
         } catch (e: Exception) { null }
     }
 
@@ -163,7 +168,7 @@ class OPExProvider : MainAPI() {
                 this.plot = movie.content?.replace(Regex("<.*?>"), "")
                 this.year = movie.year
                 this.tags = metaTags
-                this.actors = actorsList
+                this.actors = actorsList // Đã tương thích với ActorData
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
@@ -172,7 +177,7 @@ class OPExProvider : MainAPI() {
                 this.plot = movie.content?.replace(Regex("<.*?>"), "")
                 this.year = movie.year
                 this.tags = metaTags
-                this.actors = actorsList
+                this.actors = actorsList // Đã tương thích với ActorData
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         }
@@ -191,7 +196,7 @@ class OPExProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
-// --- DATA CLASSES FIX ---
+// --- DATA CLASSES ---
 data class OPListResponse(
     @param:JsonProperty("data") val data: OPListData? = null,
     @param:JsonProperty("items") val items: List<OPItem>? = null,
@@ -228,14 +233,20 @@ data class OPItemDetail(
     @param:JsonProperty("lang") val lang: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
     @param:JsonProperty("category") val category: List<OPCat>? = null,
-    @param:JsonProperty("poster_url") val poster_url: String? = null, // ĐÃ THÊM
-    @param:JsonProperty("thumb_url") val thumb_url: String? = null,   // ĐÃ THÊM
+    @param:JsonProperty("poster_url") val poster_url: String? = null,
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
     @param:JsonProperty("episodes") val episodes: List<OPServer>? = null
 )
 data class OPTmdb(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("id") val id: Any? = null)
 data class OPCat(@param:JsonProperty("name") val name: String? = null)
 data class OPServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null)
 data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
+
+// --- TMDB DATA CLASSES ---
 data class TmdbCreditsResponse(@param:JsonProperty("cast") val cast: List<TmdbCast>? = null)
-data class TmdbCast(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("profile_path") val profile_path: String? = null)
+data class TmdbCast(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("profile_path") val profile_path: String? = null,
+    @param:JsonProperty("character") val character: String? = null // Thêm trường character vào đây
+)
 data class TmdbDetailResponse(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("overview") val overview: String? = null)
