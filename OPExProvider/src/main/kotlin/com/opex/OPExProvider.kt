@@ -94,7 +94,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val defaultNames = listOf("Phim Thuyết Minh", "Phim Lồng Tiếng", "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
 
         // Mục cố định
-        categories.add(Pair("$mainUrl/v1/api/danh-sach/phim-moi-cap-nhat?sort_field=year&sort_type=desc&page=$page", "Mới Cập Nhật"))
+        categories.add(Pair("$mainUrl/v1/api/danh-sach/phim-moi-cap-nhat?page=$page", "Mới Cập Nhật"))
         
         for (i in 0..5) {
             val path = prefs.getString(getPreferenceKey(i + 1), defaultPaths[i]).orEmpty()
