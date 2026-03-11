@@ -86,20 +86,27 @@ class OPExProvider : MainAPI() {
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
     }
 
-    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
+        
+        val defaultPaths = listOf("v1/api/danh-sach/phim-thuyet-minh?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-long-tieng?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-le?sort_field=year&sort_type=desc", "v1/api/danh-sach/hoat-hinh?sort_field=year&sort_type=desc", "", "")
+        val defaultNames = listOf("Phim Thuyết Minh", "Phim Lồng Tiếng", "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+
+        // Mục cố định
         categories.add(Pair("$mainUrl/v1/api/home?sort_field=year&sort_type=desc&page=$page", "Mới Cập Nhật"))
-        for (i in 1..6) {
-            val path = prefs.getString(getPreferenceKey(i), "").orEmpty()
+        
+        for (i in 0..5) {
+            val path = prefs.getString(getPreferenceKey(i + 1), defaultPaths[i]).orEmpty()
             if (path.isNotEmpty()) {
-                val name = prefs.getString(getPreferenceNameKey(i), "Danh mục $i") ?: "Danh mục $i"
+                val name = prefs.getString(getPreferenceNameKey(i + 1), defaultNames[i]) ?: defaultNames[i]
                 val sep = if (path.contains("?")) "&" else "?"
-                categories.add(Pair(if (path.startsWith("http")) "$path${sep}page=$page" else "$mainUrl/$path${sep}page=$page", name))
+                val finalUrl = if (path.startsWith("http")) "$path${sep}page=$page" else "$mainUrl/$path${sep}page=$page"
+                categories.add(Pair(finalUrl, name))
             }
         }
         return categories
-    }
+}
     
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
