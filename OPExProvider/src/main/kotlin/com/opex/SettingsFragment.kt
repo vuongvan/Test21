@@ -44,22 +44,16 @@ class SettingsFragment(
 
         // Category lists for labels and default names
         val categoryLabels = listOf("Category 1", "Category 2", "Category 3", "Category 4", "Category 5", "Category 6")
-        val categoryNames = listOf("Phim Lẻ Mới", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
-
+        val categoryNames = listOf("Phim Thuyết Minh", "Phim Lồng Tiếng", "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+        
         // Lists to hold all edits
         val categoryNameEdits = mutableListOf<EditText>()
         val categoryEdits = mutableListOf<EditText>()
 
         // Default category API paths for OPExProvider
-        val defaultPaths = listOf(
-            "v1/api/danh-sach/phim-le",
-            "v1/api/quoc-gia/trung-quoc",
-            "v1/api/quoc-gia/han-quoc",
-            "v1/api/danh-sach/hoat-hinh",
-            "",
-            ""
-        )
-
+        
+        val defaultPaths = listOf("v1/api/danh-sach/phim-thuyet-minh?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-long-tieng?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-le?sort_field=year&sort_type=desc", "v1/api/danh-sach/hoat-hinh?sort_field=year&sort_type=desc", "", "")
+        
         // Add domain label and input
         val domainLabel = TextView(ctx).apply {
             text = "Domain:"
