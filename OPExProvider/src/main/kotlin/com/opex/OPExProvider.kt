@@ -147,7 +147,7 @@ class OPExProvider : MainAPI() {
                 metaTags.add(if (epTotal.isNotEmpty() && !cleanCurrent.contains("/")) "$cleanCurrent/$epTotal Tập" else epCurrent)
             }
         }
-        movie.lang?.split("+")?.forEach { val t = it.trim(); if (t.isNotEmpty()) metaTags.add(t) }
+        movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
         // --- FIX CHỌN SERVER: Gộp Vietsub/Thuyết minh ---
