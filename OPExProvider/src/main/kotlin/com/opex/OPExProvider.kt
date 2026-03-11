@@ -76,16 +76,12 @@ class OPExProvider : MainAPI() {
         return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
     }
 
-    // --- ĐÃ FIX: Trả về List<ActorData>? ---
     private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
         val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
         return try {
             val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
             res?.cast?.take(15)?.map { 
-                ActorData(
-                    actor = Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }),
-                    roleString = it.character // Thêm vai diễn vào đây
-                )
+                ActorData(Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }), roleString = it.character)
             }
         } catch (e: Exception) { null }
     }
@@ -138,7 +134,7 @@ class OPExProvider : MainAPI() {
         val cdn = data.APP_DOMAIN_CDN_IMAGE 
 
         val tmdbId = movie.tmdb?.id?.toString()
-        val isSingleEpisode = movie.episode_total == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
+        val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
         val actorsList = tmdbId?.let { fetchTmdbCast(tmdbType, it) }
@@ -147,9 +143,28 @@ class OPExProvider : MainAPI() {
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val poster = fixImgUrl(movie.poster_url ?: movie.thumb_url, cdn) ?: data.seoOnPage?.seoSchema?.image ?: ""
         
+        // --- KHÔI PHỤC TAGS: Lồng tiếng, Thuyết minh, Thể loại ---
         val metaTags = mutableListOf<String>()
+        val rawStatus = movie.status ?: ""
+        
+        // Xử lý tiến độ tập phim (Ví dụ: 28/28 Tập)
+        if (!isSingleEpisode) {
+            val epCurrent = movie.episode_current ?: ""
+            val epTotal = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
+            if (epCurrent.isNotEmpty()) {
+                val cleanCurrent = epCurrent.replace("Hoàn tất", "").replace("(", "").replace(")", "").trim()
+                metaTags.add(if (epTotal.isNotEmpty() && !cleanCurrent.contains("/")) "$cleanCurrent/$epTotal Tập" else epCurrent)
+            }
+        }
+
+        // Tách Vietsub / Thuyết minh
+        movie.lang?.split("+")?.forEach { 
+            val trimLang = it.trim()
+            if (trimLang.isNotEmpty()) metaTags.add(trimLang) 
+        }
+        
+        // Thêm thể loại vào Tags
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
-        movie.lang?.let { metaTags.add(it) }
 
         val episodeList = movie.episodes?.flatMap { server ->
             server.server_data?.map { ep ->
@@ -161,24 +176,28 @@ class OPExProvider : MainAPI() {
         }?.sortedBy { it.episode } ?: emptyList()
 
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
+        val plotClean = (movie.content ?: tmdbExtra?.overview ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
         return if (isSingleEpisode) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = poster
-                this.plot = movie.content?.replace(Regex("<.*?>"), "")
+                this.plot = plotClean
                 this.year = movie.year
                 this.tags = metaTags
-                this.actors = actorsList // Đã tương thích với ActorData
+                this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = poster
-                this.plot = movie.content?.replace(Regex("<.*?>"), "")
+                this.plot = plotClean
                 this.year = movie.year
                 this.tags = metaTags
-                this.actors = actorsList // Đã tương thích với ActorData
+                this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
+                // --- KHÔI PHỤC TRẠNG THÁI ---
+                this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) 
+                    ShowStatus.Completed else ShowStatus.Ongoing
             }
         }
     }
@@ -196,7 +215,7 @@ class OPExProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20")
 }
 
-// --- DATA CLASSES ---
+// --- DATA CLASSES (Giữ nguyên các trường đã fix) ---
 data class OPListResponse(
     @param:JsonProperty("data") val data: OPListData? = null,
     @param:JsonProperty("items") val items: List<OPItem>? = null,
@@ -228,7 +247,9 @@ data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
 data class OPItemDetail(
     @param:JsonProperty("name") val name: String? = null,
     @param:JsonProperty("content") val content: String? = null,
+    @param:JsonProperty("status") val status: String? = null, // Đã thêm để check Completed/Ongoing
     @param:JsonProperty("year") val year: Int? = null,
+    @param:JsonProperty("episode_current") val episode_current: String? = null,
     @param:JsonProperty("episode_total") val episode_total: String? = null,
     @param:JsonProperty("lang") val lang: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
@@ -241,12 +262,6 @@ data class OPTmdb(@param:JsonProperty("vote_average") val vote_average: Double? 
 data class OPCat(@param:JsonProperty("name") val name: String? = null)
 data class OPServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null)
 data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
-
-// --- TMDB DATA CLASSES ---
 data class TmdbCreditsResponse(@param:JsonProperty("cast") val cast: List<TmdbCast>? = null)
-data class TmdbCast(
-    @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("profile_path") val profile_path: String? = null,
-    @param:JsonProperty("character") val character: String? = null // Thêm trường character vào đây
-)
+data class TmdbCast(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("profile_path") val profile_path: String? = null, @param:JsonProperty("character") val character: String? = null)
 data class TmdbDetailResponse(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("overview") val overview: String? = null)
