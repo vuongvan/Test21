@@ -123,8 +123,7 @@ class OPExProvider : MainAPI() {
             
             // LOGIC LỌC TRAILER MỚI: Chỉ loại bỏ nếu chứa chữ "trailer" (không bị lỗi với null)
             items?.filter { 
-                it.status?.contains("trailer", true) != true && 
-                it.episode_current?.contains("trailer", true) != true 
+                it.status?.contains("trailer", true) != true
             }?.map { it ->
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
