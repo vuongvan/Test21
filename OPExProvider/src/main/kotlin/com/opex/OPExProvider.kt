@@ -121,8 +121,11 @@ class OPExProvider : MainAPI() {
             val data = parseJson<OPListResponse>(response)
             val items = data.data?.items ?: data.items 
             
-            // Lọc bỏ phim Trailer ngay tại đây
-            items?.filter { it.status?.contains("trailer", ignoreCase = true) == false }?.map { it ->
+            // LOGIC LỌC TRAILER MỚI: Chỉ loại bỏ nếu chứa chữ "trailer" (không bị lỗi với null)
+            items?.filter { 
+                it.status?.contains("trailer", true) != true && 
+                it.episode_current?.contains("trailer", true) != true 
+            }?.map { it ->
                 val tmdbScore = it.tmdb?.vote_average ?: 0.0
                 val imdbScore = it.imdb?.vote_average ?: 0.0
                 val finalRating = if (tmdbScore > 0) tmdbScore else imdbScore
@@ -138,7 +141,7 @@ class OPExProvider : MainAPI() {
                 }
             } ?: emptyList()
         } catch (e: Exception) { emptyList() }
-    }
+}
     
 
     override suspend fun load(url: String): LoadResponse? {
