@@ -183,7 +183,7 @@ class KKPExProvider : MainAPI() {
             }
         }.sortedBy { it.episode }
 
-        val finalPoster = fixPosterUrl(movie.poster_url ?: movie.thumb_url)
+        val finalPoster = fixPosterUrl(movie.thumb_url ?: movie.poster_url)
         val movieTags = mutableListOf<String>()
         
         // 1. Tag Trạng thái: Ongoing / Completed
