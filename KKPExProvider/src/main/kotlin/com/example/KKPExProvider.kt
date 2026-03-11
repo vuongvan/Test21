@@ -90,8 +90,6 @@ class KKPExProvider : MainAPI() {
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        private fun getCustomCategories(page: Int): List<Pair<String, String>> {
-        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
         
         // Fix cứng phim mới cập nhật
