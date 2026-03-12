@@ -170,11 +170,12 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
 
         val episodeList = episodesMap.map { (name, links) ->
             newEpisode(links.joinToString(",")) {
-                this.name = if (isSingleEpisode) "Full" else "Tập $name"
-                this.episode = name.filter { it.isDigit() }.toIntOrNull()
+                this.name = if (name.contains("Tập", true)) name else "Tập $name"
+                // CHỈ lấy số đầu tiên (Ví dụ "01-03" -> lấy 1) để tránh lặp số
+                this.episode = Regex("""(\d+)""").find(name)?.value?.toIntOrNull()
             }
         }.sortedBy { it.episode }
-
+        
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val plotClean = (movie.content ?: tmdbExtra?.overview ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
