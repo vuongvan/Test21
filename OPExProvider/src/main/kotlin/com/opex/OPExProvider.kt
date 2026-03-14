@@ -55,32 +55,6 @@ class OPExProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     
     private val tmdbApiKey = "YOUR_API_KEY_HERE"
-
-    private fun fixImgUrl(url: String?, domain: String?): String? {
-        if (url.isNullOrBlank()) return null
-        if (url.startsWith("http")) return url
-        if (domain.isNullOrBlank()) return null
-        val cleanDomain = domain.removeSuffix("/")
-        val cleanPath = url.removePrefix("/")
-        return if (cleanPath.startsWith("uploads/")) "$cleanDomain/$cleanPath" 
-               else "$cleanDomain/uploads/movies/$cleanPath"
-    }
-
-    private suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
-        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
-        return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
-    }
-
-    private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
-        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
-        return try {
-            val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
-            res?.cast?.take(15)?.map { 
-                ActorData(Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }), roleString = it.character)
-            }
-        } catch (e: Exception) { null }
-    }
-
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val items = getCustomCategories(page)
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
@@ -117,7 +91,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
             items?.filter { it.episode_current?.contains("trailer", true) != true }?.map { it ->
                 val scoreVal = it.tmdb?.vote_average ?: it.imdb?.vote_average ?: 0.0
                 newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
-                    this.posterUrl = fixImgUrl(it.thumb_url ?: it.poster_url, cdn)
+                    this.posterUrl = OPExUtils.fixImgUrl(it.thumb_url ?: it.poster_url, cdn)
                     if (scoreVal > 0) this.score = Score.from10(scoreVal)
                     this.quality = if (it.quality?.uppercase() == "CAM") SearchQuality.Cam else SearchQuality.HD
                 }
@@ -137,8 +111,8 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
-        val actorsList = tmdbId?.let { fetchTmdbCast(tmdbType, it) }
-        val tmdbExtra = tmdbId?.let { fetchTmdbDetails(tmdbType, it) }
+        val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
+        val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val poster = fixImgUrl(movie.poster_url ?: movie.thumb_url, cdn) ?: data.seoOnPage?.seoSchema?.image ?: ""
