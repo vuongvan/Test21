@@ -33,6 +33,13 @@ object KKExUtils {
         null
        }
     }
+
+    suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN"
+        return try { 
+            app.get(url).parsedSafe<TmdbDetailResponse>() 
+        } catch (e: Exception) { null }
+    }
 }
 // --- DATA MODELS ---
 data class KKListResponse(
