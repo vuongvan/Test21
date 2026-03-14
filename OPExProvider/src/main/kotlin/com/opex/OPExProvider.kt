@@ -115,7 +115,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
-        val poster = fixImgUrl(movie.poster_url ?: movie.thumb_url, cdn) ?: data.seoOnPage?.seoSchema?.image ?: ""
+        val poster = OPExUtils.fixImgUrl(movie.poster_url ?: movie.thumb_url, cdn) ?: data.seoOnPage?.seoSchema?.image ?: ""
         
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
