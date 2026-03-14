@@ -122,7 +122,7 @@ class KKPExProvider : MainAPI() {
             
             // Dùng Movie hay TvSeries ở đây đều được, quan trọng là phần bên trong { }
             newMovieSearchResponse(title, href, TvType.Movie) {
-                this.posterUrl = fixPosterUrl(item.poster_url ?: item.thumb_url)
+                this.posterUrl = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
                 
                 // --- THÊM ĐOẠN NÀY ĐỂ HIỆN ĐIỂM KHI TÌM KIẾM ---
                 val rating = item.tmdb?.vote_average ?: 0.0
@@ -162,7 +162,7 @@ class KKPExProvider : MainAPI() {
             }
         }.sortedBy { it.episode }
 
-        val finalPoster = fixPosterUrl(movie.thumb_url ?: movie.poster_url)
+        val finalPoster = KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
         val movieTags = mutableListOf<String>()
         
         // 1. Tag Trạng thái: Ongoing / Completed
