@@ -231,6 +231,9 @@ class KKPExProvider : MainAPI() {
         
         // ==========================================
         //Score
+        val tmdbExtra = tmdbId?.let { KKExUtils.fetchTmdbDetails(tmdbType, it) }
+        val tmdbLiveScore = tmdbExtra?.vote_average ?: movieInfo?.voteAverage ?: 0.0
+     /*
         var tmdbLiveScore: Double? = null
         if (!tmdbId.isNullOrEmpty()) {
             try {
@@ -244,6 +247,7 @@ class KKPExProvider : MainAPI() {
                 }
             } catch (e: Exception) {}
         }
+        */
         //---------
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
