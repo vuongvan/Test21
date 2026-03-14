@@ -1,8 +1,39 @@
 package com.example
 
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.Score
+import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.loadExtractor
 
+import java.util.Locale
+import android.content.Context
+
+object KKExUtils {
+
+    private val tmdbApiKey = "YOUR_API_KEY_HERE" // Giữ nguyên chữ này để lệnh sed tìm thấy
+    
+    fun fixPosterUrl(url: String?): String? {
+        if (url.isNullOrEmpty()) return null
+        return if (url.startsWith("http")) url else "https://phimimg.com/$url"
+    }
+
+    suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
+    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
+    return try {
+        val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
+        res?.cast?.take(15)?.map { cast ->
+            val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
+            ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
+        }
+    } catch (e: Exception) {
+        null
+       }
+    }
+}
 // --- DATA MODELS ---
 data class KKListResponse(
     @param:JsonProperty("items") val items: List<KKItem>? = null, 
