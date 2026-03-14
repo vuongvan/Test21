@@ -35,7 +35,7 @@ object KKExUtils {
     }
 
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
-        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN"
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
         return try { 
             app.get(url).parsedSafe<TmdbDetailResponse>() 
         } catch (e: Exception) { null }
