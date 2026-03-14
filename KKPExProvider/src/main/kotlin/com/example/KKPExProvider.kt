@@ -243,7 +243,7 @@ class KKPExProvider : MainAPI() {
                 this.plot = fullPlot
                 this.tags = movieTags
                 this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
-                this.score = finalRating?.let { if (it > 0) Score.from10(it) else null }
+                this.score = finalRating.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
             }
         } else {
@@ -254,7 +254,7 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.score = finalRating?.let { if (it > 0) Score.from10(it) else null }
+                this.score = finalRating.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
             }
        }
