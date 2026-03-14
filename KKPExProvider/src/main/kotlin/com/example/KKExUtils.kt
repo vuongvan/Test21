@@ -134,3 +134,5 @@ data class TmdbTvInfo(
 data class TmdbMovieInfo(
     @param:JsonProperty("vote_average") val voteAverage: Double? = null
 )
+
+data class TmdbDetailResponse(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("overview") val overview: String? = null)
