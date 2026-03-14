@@ -1,0 +1,98 @@
+package com.example
+
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.cloudstream3.TvType
+
+// --- DATA MODELS ---
+data class KKListResponse(
+    @param:JsonProperty("items") val items: List<KKItem>? = null, 
+    @param:JsonProperty("data") val data: KKListData? = null
+)
+
+data class KKSearchResponse(
+    @param:JsonProperty("data") val data: KKListData? = null
+)
+
+data class KKListData(
+    @param:JsonProperty("items") val items: List<KKItem>? = null
+)
+
+data class KKItem(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("slug") val slug: String? = null, 
+    @param:JsonProperty("poster_url") val poster_url: String? = null, 
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+)
+
+data class KKDetailResponse(
+    @param:JsonProperty("movie") val movie: KKMovie? = null, 
+    @param:JsonProperty("episodes") val episodes: List<KKServer>? = null
+)
+
+data class KKMovie(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("type") val type: String? = null, 
+    @param:JsonProperty("status") val status: String? = null,
+    @param:JsonProperty("poster_url") val poster_url: String? = null,
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @param:JsonProperty("content") val content: String? = null,
+    @param:JsonProperty("year") val year: Int? = null,
+    @param:JsonProperty("episode_current") val episode_current: String? = null,
+    @param:JsonProperty("episode_total") val episode_total: String? = null,
+    @param:JsonProperty("quality") val quality: String? = null,
+    @param:JsonProperty("actor") val actor: List<String>? = null,
+    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
+    @param:JsonProperty("category") val category: List<KKCategory>? = null, // Thêm lại dòng này
+    @param:JsonProperty("country") val country: List<KKCountry>? = null,   // Thêm lại dòng này
+    @param:JsonProperty("lang") val lang: String? = null
+)
+
+// Định nghĩa 2 class còn thiếu này:
+data class KKCategory(@param:JsonProperty("name") val name: String? = null)
+data class KKCountry(@param:JsonProperty("name") val name: String? = null)
+
+
+data class KKServer(
+    @param:JsonProperty("server_name") val server_name: String? = null, 
+    @param:JsonProperty("server_data") val server_data: List<KKEpisode>? = null
+)
+
+data class KKEpisode(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
+)
+
+data class KKTMDB(
+    @param:JsonProperty("type") val type: String? = null,
+    @param:JsonProperty("id") val id: String? = null,
+    @param:JsonProperty("vote_average") val vote_average: Double? = null
+)
+
+data class TmdbResponse(
+    @param:JsonProperty("credits") val credits: TmdbCredits? = null
+)
+
+data class TmdbCredits(
+    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
+)
+
+data class TmdbCast(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("character") val character: String? = null,
+    @param:JsonProperty("profile_path") val profile_path: String? = null
+)
+// Cần thêm các Data Class này ở cuối file để parse JSON tự động
+data class TmdbCreditsResponse(
+    val cast: List<TmdbCast>? = null
+)
+
+// Cho phim bộ
+data class TmdbTvInfo(
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
+)
+
+// Cho phim lẻ
+data class TmdbMovieInfo(
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
+)
