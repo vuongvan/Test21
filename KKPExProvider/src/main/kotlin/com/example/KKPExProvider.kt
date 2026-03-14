@@ -230,24 +230,11 @@ class KKPExProvider : MainAPI() {
         val finalActors = tmdbActors ?: backupActors ?: emptyList()
         
         // ==========================================
+        
         //Score
         val tmdbExtra = tmdbId?.let { KKExUtils.fetchTmdbDetails(tmdbType, it) }
-        val tmdbLiveScore = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
-     /*
-        var tmdbLiveScore: Double? = null
-        if (!tmdbId.isNullOrEmpty()) {
-            try {
-                val tmdbInfoUrl = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$tmdbApiKey&language=vi-VN"
-                if (isSeries) {
-                    val tvInfo = app.get(tmdbInfoUrl).parsedSafe<TmdbTvInfo>()
-                    tmdbLiveScore = tvInfo?.voteAverage
-                } else {
-                    val movieInfo = app.get(tmdbInfoUrl).parsedSafe<TmdbMovieInfo>()
-                    tmdbLiveScore = movieInfo?.voteAverage
-                }
-            } catch (e: Exception) {}
-        }
-        */
+        val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
+        
         //---------
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
@@ -256,7 +243,7 @@ class KKPExProvider : MainAPI() {
                 this.plot = fullPlot
                 this.tags = movieTags
                 this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
-                this.score = tmdbLiveScore?.let { if (it > 0) Score.from10(it) else null }
+                this.score = finalRating?.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
             }
         } else {
@@ -267,7 +254,7 @@ class KKPExProvider : MainAPI() {
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
-                this.score = tmdbLiveScore?.let { if (it > 0) Score.from10(it) else null }
+                this.score = finalRating?.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
             }
        }
