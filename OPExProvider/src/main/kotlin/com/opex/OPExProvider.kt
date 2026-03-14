@@ -160,7 +160,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
                 this.year = movie.year
                 this.tags = metaTags
                 this.actors = actorsList
-                if (finalRating > 0) this.score = Score.from10(finalRating)
+                this.score = finalRating?.let { if (it > 0) Score.from10(it) else null }
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
@@ -169,7 +169,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
                 this.year = movie.year
                 this.tags = metaTags
                 this.actors = actorsList
-                if (finalRating > 0) this.score = Score.from10(finalRating)
+                this.score = finalRating?.let { if (it > 0) Score.from10(it) else null }
                 this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) 
                     ShowStatus.Completed else ShowStatus.Ongoing
             }
