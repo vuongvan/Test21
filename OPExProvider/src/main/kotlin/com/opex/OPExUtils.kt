@@ -1,12 +1,45 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.Score
-import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.lagradost.cloudstream3.utils.AppUtils.parsedSafe
+import com.lagradost.cloudstream3.utils.get
 import com.fasterxml.jackson.annotation.JsonProperty
-import java.util.Locale
-import android.content.Context
+
+object OPExUtils {
+    
+    // Đưa API Key vào đây để quản lý tập trung
+    private const val TMDB_API_KEY = "YOUR_API_KEY_HERE"
+
+    fun fixImgUrl(url: String?, domain: String?): String? {
+        if (url.isNullOrBlank()) return null
+        if (url.startsWith("http")) return url
+        if (domain.isNullOrBlank()) return null
+        val cleanDomain = domain.removeSuffix("/")
+        val cleanPath = url.removePrefix("/")
+        return if (cleanPath.startsWith("uploads/")) "$cleanDomain/$cleanPath" 
+               else "$cleanDomain/uploads/movies/$cleanPath"
+    }
+
+    suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN"
+        return try { 
+            app.get(url).parsedSafe<TmdbDetailResponse>() 
+        } catch (e: Exception) { null }
+    }
+
+    suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$TMDB_API_KEY&language=vi-VN"
+        return try {
+            val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
+            res?.cast?.take(15)?.map { 
+                ActorData(
+                    Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }), 
+                    roleString = it.character
+                )
+            }
+        } catch (e: Exception) { null }
+    }
+}
 
 // --- DATA CLASSES (Giữ nguyên) ---
 data class OPListResponse(
