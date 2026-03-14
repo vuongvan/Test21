@@ -32,16 +32,10 @@ class KKPExProvider : MainAPI() {
     }
 
     override var mainUrl = "https://phimapi.com"
-    private val tmdbApiKey = "YOUR_API_KEY_HERE" // Giữ nguyên chữ này để lệnh sed tìm thấy
     override var name = "KK Phim"
     override val hasMainPage = true
     override var lang = "vi"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
-
-    private fun fixPosterUrl(url: String?): String? {
-        if (url.isNullOrEmpty()) return null
-        return if (url.startsWith("http")) url else "https://phimimg.com/$url"
-    }
     
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         val response = app.get(url).text
@@ -61,7 +55,7 @@ class KKPExProvider : MainAPI() {
             val title = item.name ?: return@mapNotNull null
             val slug = item.slug ?: return@mapNotNull null
             val href = "$mainUrl/phim/$slug" 
-            val poster = fixPosterUrl(item.poster_url ?: item.thumb_url)
+            val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
 
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = poster
@@ -72,21 +66,6 @@ class KKPExProvider : MainAPI() {
             }
         }
     }
-
-    private suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
-    val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
-    return try {
-        val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
-        res?.cast?.take(15)?.map { cast ->
-            val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
-            ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
-        }
-    } catch (e: Exception) {
-        null
-    }
-    }
-    
-
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -239,7 +218,7 @@ class KKPExProvider : MainAPI() {
         
         // Lấy danh sách từ TMDB (có thể null)
         val tmdbActors = if (!tmdbId.isNullOrEmpty()) {
-            fetchTmdbCast(tmdbType, tmdbId) 
+            KKExUtils.fetchTmdbCast(tmdbType, tmdbId) 
         } else null
 
         // Chuyển đổi list dự phòng từ API gốc nếu TMDB không có
