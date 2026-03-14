@@ -232,7 +232,7 @@ class KKPExProvider : MainAPI() {
         // ==========================================
         //Score
         val tmdbExtra = tmdbId?.let { KKExUtils.fetchTmdbDetails(tmdbType, it) }
-        val tmdbLiveScore = tmdbExtra?.vote_average ?: movieInfo?.voteAverage ?: 0.0
+        val tmdbLiveScore = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
      /*
         var tmdbLiveScore: Double? = null
         if (!tmdbId.isNullOrEmpty()) {
