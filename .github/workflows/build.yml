@@ -54,7 +54,7 @@ jobs:
         run: |
           # Dùng lệnh sed để tìm và thay thế chuỗi YOUR_API_KEY_HERE bằng giá trị thực từ Secret
           # Bạn lưu ý file path phải chính xác đến file KKPExProvider.kt của bạn
-          sed -i "s/YOUR_API_KEY_HERE/$TMDB_KEY/g" src/KKPExProvider/src/main/kotlin/com/example/KKPExProvider.kt
+          sed -i "s/YOUR_API_KEY_HERE/$TMDB_KEY/g" src/KKPExProvider/src/main/kotlin/com/example/KKExUtils.kt
           sed -i "s/YOUR_API_KEY_HERE/$TMDB_KEY/g" src/OPExProvider/src/main/kotlin/com/opex/OPExUtils.kt
           
       - name: Build Plugins
