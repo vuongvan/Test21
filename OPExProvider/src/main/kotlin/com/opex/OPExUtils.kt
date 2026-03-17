@@ -114,7 +114,7 @@ data class OPDataContent(@param:JsonProperty("item") val item: OPItemDetail? = n
 data class OPSeoOnPage(@param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null)
 data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
 data class OPItemDetail(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("content") val content: String? = null, @param:JsonProperty("status") val status: String? = null, @param:JsonProperty("year") val year: Int? = null, @param:JsonProperty("episode_current") val episode_current: String? = null, @param:JsonProperty("episode_total") val episode_total: String? = null, @param:JsonProperty("lang") val lang: String? = null, @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, @param:JsonProperty("category") val category: List<OPCat>? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null, @param:JsonProperty("episodes") val episodes: List<OPServer>? = null)
-data class OPTmdb(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("id") val id: Any? = null)
+data class OPTmdb(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("id") val id: Any? = null, @param:JsonProperty("season") val season: Int? = null)
 data class OPCat(@param:JsonProperty("name") val name: String? = null)
 data class OPServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null)
 data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
