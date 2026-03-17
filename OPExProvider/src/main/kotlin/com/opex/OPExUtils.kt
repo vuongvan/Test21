@@ -97,7 +97,7 @@ object OPExUtils {
                 val date = formatDate(tmdbEp?.air_date)
                 
                 if (rating != null && rating > 0) {
-                    this.rating = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
+                    this.score = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
                 }
                 
                 // Gán ngày chiếu để hiện dưới tên tập
