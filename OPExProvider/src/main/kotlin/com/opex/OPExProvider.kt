@@ -1,11 +1,8 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
-import com.fasterxml.jackson.annotation.JsonProperty
-import java.util.Locale
 import android.content.Context
 
 class OPExProvider : MainAPI() {
@@ -95,17 +92,12 @@ class OPExProvider : MainAPI() {
         val cdn = data.APP_DOMAIN_CDN_IMAGE 
 
         val tmdbId = movie.tmdb?.id?.toString()
-        val isSingleEpisode = movie.episode_total?.trim() == "1"
+        val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
-        val tmdbId = movie.tmdb?.id?.toString()
-    val isSeries = movie.episode_total?.trim() != "1" // Logic xác định phim bộ của bạn
-    
-    // Gọi hàm extension (không cần ghi OPExUtils. phía trước vì đã import extension)
-    val episodeList = getMergedEpisodes(tmdbId, movie.episodes, isSeries)
-    
-        // Sử dụng hàm trộn tập phim từ Utils
-          
+        // Đã sửa: Truyền 'this' vào hàm để nó hiểu ngữ cảnh của MainAPI
+        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, !isSingleEpisode)
+        
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
@@ -156,5 +148,3 @@ class OPExProvider : MainAPI() {
         
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=30")
 }
-
-// --- GIỮ NGUYÊN TOÀN BỘ DATA CLASS CỦA BẠN ---
