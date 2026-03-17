@@ -94,14 +94,15 @@ object OPExUtils {
                 
                 // Hiển thị đánh giá và ngày chiếu (giống ảnh 3)
                 val rating = tmdbEp?.vote_average
-                val date = formatDate(tmdbEp?.air_date)
-                
+                //val date = formatDate(tmdbEp?.air_date)
+            
                 if (rating != null && rating > 0) {
                     this.score = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
                 }
-                this.runTime = date
+                
                 // Gán ngày chiếu để hiện dưới tên tập
-                this.addDate(date)
+                this.addDate(tmdbEp?.air_date)
+                
             }
         }.sortedBy { it.episode }
     }
