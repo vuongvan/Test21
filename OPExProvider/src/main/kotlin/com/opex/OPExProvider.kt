@@ -95,12 +95,17 @@ class OPExProvider : MainAPI() {
         val cdn = data.APP_DOMAIN_CDN_IMAGE 
 
         val tmdbId = movie.tmdb?.id?.toString()
-        val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
+        val isSingleEpisode = movie.episode_total?.trim() == "1"
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
+        val tmdbId = movie.tmdb?.id?.toString()
+    val isSeries = movie.episode_total?.trim() != "1" // Logic xác định phim bộ của bạn
+    
+    // Gọi hàm extension (không cần ghi OPExUtils. phía trước vì đã import extension)
+    val episodeList = getMergedEpisodes(tmdbId, movie.episodes, isSeries)
+    
         // Sử dụng hàm trộn tập phim từ Utils
-        val episodeList = OPExUtils.getMergedEpisodes(tmdbId, movie.episodes, !isSingleEpisode)
-        
+          
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
