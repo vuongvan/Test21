@@ -99,7 +99,7 @@ object OPExUtils {
                 if (rating != null && rating > 0) {
                     this.score = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
                 }
-                
+                this.runTime = date
                 // Gán ngày chiếu để hiện dưới tên tập
                 this.addDate(date)
             }
