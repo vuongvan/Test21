@@ -2,11 +2,13 @@ package com.opex
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 object OPExUtils {
-    // Sẽ được GitHub Action tự động điền key vào đây
     private const val TMDB_API_KEY = "YOUR_API_KEY_HERE"
 
     fun fixImgUrl(url: String?, domain: String?): String? {
@@ -16,6 +18,18 @@ object OPExUtils {
         val cleanPath = url.removePrefix("/")
         return if (cleanPath.startsWith("uploads/")) "$cleanDomain/$cleanPath" 
                else "$cleanDomain/uploads/movies/$cleanPath"
+    }
+
+    private fun formatDate(dateStr: String?): String? {
+        if (dateStr.isNullOrBlank()) return null
+        return try {
+            val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val outputFormat = SimpleDateFormat("d 'tháng' M, yyyy", Locale("vi"))
+            val date = inputFormat.parse(dateStr)
+            date?.let { outputFormat.format(it) }
+        } catch (e: Exception) {
+            dateStr
+        }
     }
 
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
@@ -38,7 +52,6 @@ object OPExUtils {
         return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
 
-    // Nhận api: MainAPI làm tham số để giải quyết triệt để lỗi scope của newEpisode
     suspend fun getMergedEpisodes(
         api: MainAPI,
         tmdbId: String?, 
@@ -73,16 +86,39 @@ object OPExUtils {
         return ophimEpsMap.map { (num, data) ->
             val tmdbEp = tmdbEpsMap?.get(num)
             api.newEpisode(data.second) {
-                this.name = if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}"
+                // Tên tập phim lấy từ TMDB nếu có, không thì dùng tên của OPhim
+                this.name = tmdbEp?.name ?: (if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}")
                 this.episode = num
-                this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w300$it" }
+                this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
+                
+                // Hiển thị đánh giá và ngày chiếu (giống ảnh 3)
+                val rating = tmdbEp?.vote_average
+                val date = formatDate(tmdbEp?.air_date)
+                
+                if (rating != null && rating > 0) {
+                    this.rating = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
+                }
+                
+                // Gán ngày chiếu để hiện dưới tên tập
+                this.addDate(date)
             }
         }.sortedBy { it.episode }
     }
 }
 
-// Data Classes (Giữ nguyên 100%)
+// --- Data Classes cập nhật thêm các field TMDB ---
+data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
+data class TmdbEpisode(
+    val episode_number: Int?, 
+    val name: String?, 
+    val overview: String?, 
+    val still_path: String?,
+    val air_date: String?,
+    val vote_average: Double?
+)
+
+// Các data class khác giữ nguyên như bản trước...
 data class OPListResponse(@param:JsonProperty("data") val data: OPListData? = null, @param:JsonProperty("items") val items: List<OPItem>? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
 data class OPListData(@param:JsonProperty("items") val items: List<OPItem>? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
 data class OPItem(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("slug") val slug: String? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null, @param:JsonProperty("quality") val quality: String? = null, @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null, @param:JsonProperty("episode_current") val episode_current: String? = null)
@@ -99,5 +135,3 @@ data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @para
 data class TmdbCreditsResponse(val cast: List<TmdbCast>?)
 data class TmdbCast(val name: String?, val profile_path: String?, val character: String?)
 data class TmdbDetailResponse(val vote_average: Double?, val overview: String?)
-data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
-data class TmdbEpisode(val episode_number: Int?, val name: String?, val overview: String?, val still_path: String?)
