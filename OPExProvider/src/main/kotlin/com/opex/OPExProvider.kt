@@ -94,10 +94,12 @@ class OPExProvider : MainAPI() {
         val tmdbId = movie.tmdb?.id?.toString()
         val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
-
-        // Đã sửa: Truyền 'this' vào hàm để nó hiểu ngữ cảnh của MainAPI
-        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, !isSingleEpisode)
         
+        val seasonNumber = movie.tmdb?.season ?: 1
+        // Đã sửa: Truyền 'this' vào hàm để nó hiểu ngữ cảnh của MainAPI
+        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, !isSingleEpisode, seasonNumber)
+ 
+         
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
