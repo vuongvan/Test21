@@ -48,7 +48,7 @@ object OPExUtils {
     }
 
     private suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int): TmdbSeasonResponse? {
-        val url = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber?api_key=$TMDB_API_KEY&language=vi-VN"
+        val url = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber?api_key=$TMDB_API_KEY"
         return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
 
