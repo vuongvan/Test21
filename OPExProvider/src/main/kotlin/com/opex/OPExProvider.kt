@@ -27,23 +27,13 @@ class OPExProvider : MainAPI() {
         const val PREF_CATEGORY_6_NAME = "category_6_name"
 
         fun getPreferenceKey(i: Int): String = when (i) {
-            1 -> PREF_CATEGORY_1
-            2 -> PREF_CATEGORY_2
-            3 -> PREF_CATEGORY_3
-            4 -> PREF_CATEGORY_4
-            5 -> PREF_CATEGORY_5
-            6 -> PREF_CATEGORY_6
-            else -> PREF_CATEGORY_1
+            1 -> PREF_CATEGORY_1; 2 -> PREF_CATEGORY_2; 3 -> PREF_CATEGORY_3
+            4 -> PREF_CATEGORY_4; 5 -> PREF_CATEGORY_5; 6 -> PREF_CATEGORY_6; else -> PREF_CATEGORY_1
         }
 
         fun getPreferenceNameKey(i: Int): String = when (i) {
-            1 -> PREF_CATEGORY_1_NAME
-            2 -> PREF_CATEGORY_2_NAME
-            3 -> PREF_CATEGORY_3_NAME
-            4 -> PREF_CATEGORY_4_NAME
-            5 -> PREF_CATEGORY_5_NAME
-            6 -> PREF_CATEGORY_6_NAME
-            else -> PREF_CATEGORY_1_NAME
+            1 -> PREF_CATEGORY_1_NAME; 2 -> PREF_CATEGORY_2_NAME; 3 -> PREF_CATEGORY_3_NAME
+            4 -> PREF_CATEGORY_4_NAME; 5 -> PREF_CATEGORY_5_NAME; 6 -> PREF_CATEGORY_6_NAME; else -> PREF_CATEGORY_1_NAME
         }
     }
 
@@ -53,21 +43,18 @@ class OPExProvider : MainAPI() {
     override var lang = "vi"
     override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
-    
-    private val tmdbApiKey = "YOUR_API_KEY_HERE"
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val items = getCustomCategories(page)
         return newHomePageResponse(items.map { HomePageList(it.second, getListFromUrl(it.first)) }, hasNext = true)
     }
 
-private fun getCustomCategories(page: Int): List<Pair<String, String>> {
+    private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
-        
         val defaultPaths = listOf("v1/api/danh-sach/phim-thuyet-minh?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-long-tieng?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-le?sort_field=year&sort_type=desc", "v1/api/danh-sach/hoat-hinh?sort_field=year&sort_type=desc", "", "")
         val defaultNames = listOf("Phim Thuyết Minh", "Phim Lồng Tiếng", "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
 
-        // Mục cố định
         categories.add(Pair("$mainUrl/v1/api/danh-sach/phim-moi-cap-nhat?page=$page", "Mới Cập Nhật"))
         
         for (i in 0..5) {
@@ -80,7 +67,7 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
             }
         }
         return categories
-}
+    }
     
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
@@ -111,6 +98,9 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
 
+        // Sử dụng hàm trộn tập phim từ Utils
+        val episodeList = OPExUtils.getMergedEpisodes(tmdbId, movie.episodes, !isSingleEpisode)
+        
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
@@ -131,45 +121,18 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
-        // --- FIX CHỌN SERVER: Gộp Vietsub/Thuyết minh ---
-        val episodesMap = mutableMapOf<String, MutableList<String>>()
-        movie.episodes?.forEach { server ->
-            val sName = server.server_name ?: "Server"
-            server.server_data?.forEach { ep ->
-                val epName = ep.name ?: "Full"
-                val list = episodesMap.getOrPut(epName) { mutableListOf() }
-                list.add("${ep.link_m3u8}|$sName")
-            }
-        }
-
-        val episodeList = episodesMap.map { (name, links) ->
-            newEpisode(links.joinToString(",")) {
-                this.name = if (name.contains("Tập", true)) name else "Tập $name"
-                // CHỈ lấy số đầu tiên (Ví dụ "01-03" -> lấy 1) để tránh lặp số
-                this.episode = Regex("""(\d+)""").find(name)?.value?.toIntOrNull()
-            }
-        }.sortedBy { it.episode }
-        
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val plotClean = (movie.content ?: tmdbExtra?.overview ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
         return if (isSingleEpisode) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
-                this.posterUrl = poster
-                this.plot = plotClean
-                this.year = movie.year
-                this.tags = metaTags
-                this.actors = actorsList
-                this.score = finalRating.let { if (it > 0) Score.from10(it) else null }
+                this.posterUrl = poster; this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
-                this.posterUrl = poster
-                this.plot = plotClean
-                this.year = movie.year
-                this.tags = metaTags
-                this.actors = actorsList
-                this.score = finalRating.let { if (it > 0) Score.from10(it) else null }
+                this.posterUrl = poster; this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) 
                     ShowStatus.Completed else ShowStatus.Ongoing
             }
@@ -189,3 +152,4 @@ private fun getCustomCategories(page: Int): List<Pair<String, String>> {
     override suspend fun search(query: String): List<SearchResponse> = getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=30")
 }
 
+// --- GIỮ NGUYÊN TOÀN BỘ DATA CLASS CỦA BẠN ---
