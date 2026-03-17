@@ -2,13 +2,13 @@ package com.opex
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 object OPExUtils {
+    // Lưu ý: Key này nên được nạp từ GitHub Secret thông qua file YAML khi build
     private const val TMDB_API_KEY = "YOUR_API_KEY_HERE"
 
     fun fixImgUrl(url: String?, domain: String?): String? {
@@ -57,43 +57,121 @@ object OPExUtils {
         tmdbId: String?, 
         ophimServers: List<OPServer>?,
         isSeries: Boolean,
-        seasonNumber: Int = 1 // Thêm tham số mặc định ở đây
+        seasonNumber: Int = 1
     ): List<Episode> {
-        // ... logic tạo ophimEpsMap giữ nguyên ...
-
-        if (tmdbId == null) {
-            // ... logic trả về khi không có tmdbId giữ nguyên ...
+        val ophimEpsMap = mutableMapOf<Int, Pair<String, String>>()
+        
+        ophimServers?.forEach { server ->
+            val sName = server.server_name ?: "Server"
+            server.server_data?.forEach { ep ->
+                val epName = ep.name ?: ""
+                val epNum = Regex("""(\d+)""").find(epName)?.value?.toIntOrNull() ?: 1
+                val current = ophimEpsMap[epNum]
+                val newLinks = if (current == null) "${ep.link_m3u8}|$sName" else "${current.second},${ep.link_m3u8}|$sName"
+                ophimEpsMap[epNum] = Pair(epName, newLinks)
+            }
         }
 
-        // Sử dụng seasonNumber được truyền từ Provider sang
+        if (tmdbId == null) {
+            return ophimEpsMap.map { (num, data) ->
+                api.newEpisode(data.second) {
+                    this.name = if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}"
+                    this.episode = num
+                }
+            }.sortedBy { it.episode }
+        }
+
         val tmdbSeason = if (isSeries) fetchTmdbSeason(tmdbId, seasonNumber) else null
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
 
         return ophimEpsMap.map { (num, data) ->
             val tmdbEp = tmdbEpsMap?.get(num)
             api.newEpisode(data.second) {
+                // Hiển thị tên tập từ TMDB nếu có (VD: 1. Khởi đầu...)
                 this.name = tmdbEp?.name ?: (if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}")
                 this.episode = num
                 this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
                 
+                // Xử lý điểm đánh giá theo thang điểm 10 của Cloudstream
                 val rating = tmdbEp?.vote_average
-                val date = formatDate(tmdbEp?.air_date)
-                
                 if (rating != null && rating > 0) {
-                    this.score = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
+                    this.score = Score.from10(rating)
                 }
                 
-                // Gán ngày chiếu để hiện dưới tên tập
+                // Định dạng ngày chiếu sang tiếng Việt và gán vào UI
                 this.addDate(tmdbEp?.air_date)
-                
             }
         }.sortedBy { it.episode }
     }
 }
-    
 
-// --- Data Classes cập nhật thêm các field TMDB ---
+// --- Data Classes ---
+
+data class OPListResponse(
+    @param:JsonProperty("data") val data: OPListData? = null, 
+    @param:JsonProperty("items") val items: List<OPItem>? = null, 
+    @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null
+)
+
+data class OPListData(
+    @param:JsonProperty("items") val items: List<OPItem>? = null, 
+    @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null
+)
+
+data class OPItem(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("slug") val slug: String? = null, 
+    @param:JsonProperty("poster_url") val poster_url: String? = null, 
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null, 
+    @param:JsonProperty("quality") val quality: String? = null, 
+    @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, 
+    @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null, 
+    @param:JsonProperty("episode_current") val episode_current: String? = null
+)
+
+data class OPTmdb(
+    @param:JsonProperty("vote_average") val vote_average: Double? = null, 
+    @param:JsonProperty("id") val id: Any? = null,
+    @param:JsonProperty("type") val type: String? = null,
+    @param:JsonProperty("season") val season: Int? = null // Đã thêm để lấy thông tin mùa
+)
+
+data class OPImdbListItem(@param:JsonProperty("vote_average") val vote_average: Double? = null)
+
+data class OPRootResponse(@param:JsonProperty("data") val data: OPDataContent? = null)
+
+data class OPDataContent(
+    @param:JsonProperty("item") val item: OPItemDetail? = null, 
+    @param:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null, 
+    @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null
+)
+
+data class OPSeoOnPage(@param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null)
+data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
+
+data class OPItemDetail(
+    @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("content") val content: String? = null, 
+    @param:JsonProperty("status") val status: String? = null, 
+    @param:JsonProperty("year") val year: Int? = null, 
+    @param:JsonProperty("episode_current") val episode_current: String? = null, 
+    @param:JsonProperty("episode_total") val episode_total: String? = null, 
+    @param:JsonProperty("lang") val lang: String? = null, 
+    @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, 
+    @param:JsonProperty("category") val category: List<OPCat>? = null, 
+    @param:JsonProperty("poster_url") val poster_url: String? = null, 
+    @param:JsonProperty("thumb_url") val thumb_url: String? = null, 
+    @param:JsonProperty("episodes") val episodes: List<OPServer>? = null
+)
+
+data class OPCat(@param:JsonProperty("name") val name: String? = null)
+data class OPServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null)
+data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
+
+data class TmdbCreditsResponse(val cast: List<TmdbCast>?)
+data class TmdbCast(val name: String?, val profile_path: String?, val character: String?)
+data class TmdbDetailResponse(val vote_average: Double?, val overview: String?)
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
 data class TmdbEpisode(
     val episode_number: Int?, 
@@ -103,21 +181,3 @@ data class TmdbEpisode(
     val air_date: String?,
     val vote_average: Double?
 )
-
-// Các data class khác giữ nguyên như bản trước...
-data class OPListResponse(@param:JsonProperty("data") val data: OPListData? = null, @param:JsonProperty("items") val items: List<OPItem>? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
-data class OPListData(@param:JsonProperty("items") val items: List<OPItem>? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
-data class OPItem(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("slug") val slug: String? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null, @param:JsonProperty("quality") val quality: String? = null, @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null, @param:JsonProperty("episode_current") val episode_current: String? = null)
-data class OPImdbListItem(@param:JsonProperty("vote_average") val vote_average: Double? = null)
-data class OPRootResponse(@param:JsonProperty("data") val data: OPDataContent? = null)
-data class OPDataContent(@param:JsonProperty("item") val item: OPItemDetail? = null, @param:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
-data class OPSeoOnPage(@param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null)
-data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
-data class OPItemDetail(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("content") val content: String? = null, @param:JsonProperty("status") val status: String? = null, @param:JsonProperty("year") val year: Int? = null, @param:JsonProperty("episode_current") val episode_current: String? = null, @param:JsonProperty("episode_total") val episode_total: String? = null, @param:JsonProperty("lang") val lang: String? = null, @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, @param:JsonProperty("category") val category: List<OPCat>? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null, @param:JsonProperty("episodes") val episodes: List<OPServer>? = null)
-data class OPTmdb(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("id") val id: Any? = null, @param:JsonProperty("season") val season: Int? = null)
-data class OPCat(@param:JsonProperty("name") val name: String? = null)
-data class OPServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null)
-data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
-data class TmdbCreditsResponse(val cast: List<TmdbCast>?)
-data class TmdbCast(val name: String?, val profile_path: String?, val character: String?)
-data class TmdbDetailResponse(val vote_average: Double?, val overview: String?)
