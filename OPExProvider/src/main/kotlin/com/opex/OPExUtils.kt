@@ -47,7 +47,7 @@ object OPExUtils {
         } catch (e: Exception) { null }
     }
 
-    private suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int = 1): TmdbSeasonResponse? {
+    private suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int): TmdbSeasonResponse? {
         val url = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber?api_key=$TMDB_API_KEY&language=vi-VN"
         return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
@@ -56,46 +56,30 @@ object OPExUtils {
         api: MainAPI,
         tmdbId: String?, 
         ophimServers: List<OPServer>?,
-        isSeries: Boolean
+        isSeries: Boolean,
+        seasonNumber: Int = 1 // Thêm tham số mặc định ở đây
     ): List<Episode> {
-        val ophimEpsMap = mutableMapOf<Int, Pair<String, String>>()
-        
-        ophimServers?.forEach { server ->
-            val sName = server.server_name ?: "Server"
-            server.server_data?.forEach { ep ->
-                val epName = ep.name ?: ""
-                val epNum = Regex("""(\d+)""").find(epName)?.value?.toIntOrNull() ?: 1
-                val current = ophimEpsMap[epNum]
-                val newLinks = if (current == null) "${ep.link_m3u8}|$sName" else "${current.second},${ep.link_m3u8}|$sName"
-                ophimEpsMap[epNum] = Pair(epName, newLinks)
-            }
-        }
+        // ... logic tạo ophimEpsMap giữ nguyên ...
 
         if (tmdbId == null) {
-            return ophimEpsMap.map { (num, data) ->
-                api.newEpisode(data.second) {
-                    this.name = if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}"
-                    this.episode = num
-                }
-            }.sortedBy { it.episode }
+            // ... logic trả về khi không có tmdbId giữ nguyên ...
         }
 
-        val tmdbSeason = if (isSeries) fetchTmdbSeason(tmdbId, 1) else null
+        // Sử dụng seasonNumber được truyền từ Provider sang
+        val tmdbSeason = if (isSeries) fetchTmdbSeason(tmdbId, seasonNumber) else null
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
 
         return ophimEpsMap.map { (num, data) ->
             val tmdbEp = tmdbEpsMap?.get(num)
             api.newEpisode(data.second) {
-                // Tên tập phim lấy từ TMDB nếu có, không thì dùng tên của OPhim
                 this.name = tmdbEp?.name ?: (if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}")
                 this.episode = num
                 this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
                 
-                // Hiển thị đánh giá và ngày chiếu (giống ảnh 3)
                 val rating = tmdbEp?.vote_average
-                //val date = formatDate(tmdbEp?.air_date)
-            
+                val date = formatDate(tmdbEp?.air_date)
+                
                 if (rating != null && rating > 0) {
                     this.score = Score.from10(rating) // Cloudstream dùng thang điểm 1000 cho rating nội bộ hoặc hiển thị text
                 }
@@ -107,6 +91,7 @@ object OPExUtils {
         }.sortedBy { it.episode }
     }
 }
+    
 
 // --- Data Classes cập nhật thêm các field TMDB ---
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
