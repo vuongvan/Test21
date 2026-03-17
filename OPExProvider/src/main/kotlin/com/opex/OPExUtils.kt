@@ -1,11 +1,12 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.AppUtils.parsedSafe
-import com.lagradost.cloudstream3.utils.get
+import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 
 object OPExUtils {
+    // Sẽ được GitHub Action tự động điền key vào đây
     private const val TMDB_API_KEY = "YOUR_API_KEY_HERE"
 
     fun fixImgUrl(url: String?, domain: String?): String? {
@@ -19,26 +20,27 @@ object OPExUtils {
 
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN"
-        return try { app.get(url).parsedSafe<TmdbDetailResponse>() } catch (e: Exception) { null }
+        return try { parseJson<TmdbDetailResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
 
     suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
         val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$TMDB_API_KEY&language=vi-VN"
         return try {
-            val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
-            res?.cast?.take(15)?.map { 
+            val res = parseJson<TmdbCreditsResponse>(app.get(url).text)
+            res.cast?.take(15)?.map { 
                 ActorData(Actor(it.name ?: "", it.profile_path?.let { p -> "https://image.tmdb.org/t/p/w185$p" }), roleString = it.character)
             }
         } catch (e: Exception) { null }
     }
 
-    suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int = 1): TmdbSeasonResponse? {
+    private suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int = 1): TmdbSeasonResponse? {
         val url = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber?api_key=$TMDB_API_KEY&language=vi-VN"
-        return try { app.get(url).parsedSafe<TmdbSeasonResponse>() } catch (e: Exception) { null }
+        return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
 
-    // Chuyển thành Extension Function của MainAPI để dùng được newEpisode
-    suspend fun MainAPI.getMergedEpisodes(
+    // Nhận api: MainAPI làm tham số để giải quyết triệt để lỗi scope của newEpisode
+    suspend fun getMergedEpisodes(
+        api: MainAPI,
         tmdbId: String?, 
         ophimServers: List<OPServer>?,
         isSeries: Boolean
@@ -58,7 +60,7 @@ object OPExUtils {
 
         if (tmdbId == null) {
             return ophimEpsMap.map { (num, data) ->
-                newEpisode(data.second) {
+                api.newEpisode(data.second) {
                     this.name = if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}"
                     this.episode = num
                 }
@@ -68,10 +70,9 @@ object OPExUtils {
         val tmdbSeason = if (isSeries) fetchTmdbSeason(tmdbId, 1) else null
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
 
-        // Chỉ lặp qua những tập OPhim đã có
         return ophimEpsMap.map { (num, data) ->
             val tmdbEp = tmdbEpsMap?.get(num)
-            newEpisode(data.second) {
+            api.newEpisode(data.second) {
                 this.name = if (data.first.contains("Tập", true)) data.first else "Tập ${data.first}"
                 this.episode = num
                 this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w300$it" }
@@ -81,7 +82,7 @@ object OPExUtils {
     }
 }
 
-// --- TOÀN BỘ DATA CLASS ĐƯỢC CHUYỂN VỀ ĐÂY ---
+// Data Classes (Giữ nguyên 100%)
 data class OPListResponse(@param:JsonProperty("data") val data: OPListData? = null, @param:JsonProperty("items") val items: List<OPItem>? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
 data class OPListData(@param:JsonProperty("items") val items: List<OPItem>? = null, @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null)
 data class OPItem(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("slug") val slug: String? = null, @param:JsonProperty("poster_url") val poster_url: String? = null, @param:JsonProperty("thumb_url") val thumb_url: String? = null, @param:JsonProperty("quality") val quality: String? = null, @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null, @param:JsonProperty("episode_current") val episode_current: String? = null)
