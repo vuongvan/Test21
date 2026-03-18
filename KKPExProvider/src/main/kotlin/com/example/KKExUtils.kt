@@ -40,6 +40,11 @@ object KKExUtils {
             app.get(url).parsedSafe<TmdbDetailResponse>() 
         } catch (e: Exception) { null }
     }
+
+    suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int): TmdbSeasonResponse? {
+        val url = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber?api_key=$tmdbApiKey&language=vi-VN"
+        return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
+    }
 }
 // --- DATA MODELS ---
 data class KKListResponse(
@@ -104,6 +109,7 @@ data class KKEpisode(
 data class KKTMDB(
     @param:JsonProperty("type") val type: String? = null,
     @param:JsonProperty("id") val id: String? = null,
+    @param:JsonProperty("season") val season: Int? = null, //
     @param:JsonProperty("vote_average") val vote_average: Double? = null
 )
 
@@ -136,3 +142,16 @@ data class TmdbMovieInfo(
 )
 
 data class TmdbDetailResponse(@param:JsonProperty("vote_average") val vote_average: Double? = null, @param:JsonProperty("overview") val overview: String? = null)
+
+data class TmdbSeasonResponse(
+    @param:JsonProperty("episodes") val episodes: List<TmdbEpisodeDetail>? = null
+)
+
+data class TmdbEpisodeDetail(
+    @param:JsonProperty("episode_number") val episodeNumber: Int? = null,
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("overview") val overview: String? = null,
+    @param:JsonProperty("still_path") val stillPath: String? = null,
+    @param:JsonProperty("air_date") val airDate: String? = null,
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
+)
