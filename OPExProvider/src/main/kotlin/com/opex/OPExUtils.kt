@@ -175,6 +175,7 @@ data class TmdbDetailResponse(val vote_average: Double?, val overview: String?)
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
 data class TmdbEpisode(
     val episode_number: Int?, 
+    val runtime: Int?, 
     val name: String?, 
     val overview: String?, 
     val still_path: String?,
