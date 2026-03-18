@@ -192,13 +192,13 @@ class KKPExProvider : MainAPI() {
                 this.description = tmdbEp?.overview
                 
                 // Xử lý điểm đánh giá theo thang điểm 10 của Cloudstream
-                val rating = tmdbEp?.vote_average
+                val rating = tmdbEp?.voteAverage
                 if (rating != null && rating > 0) {
                     this.score = Score.from10(rating)
                 }
                 
                 // Định dạng ngày chiếu sang tiếng Việt và gán vào UI
-                this.addDate(tmdbEp?.air_date)
+                this.addDate(tmdbEp?.airDate)
             }
         }.sortedBy { it.episode }
 
