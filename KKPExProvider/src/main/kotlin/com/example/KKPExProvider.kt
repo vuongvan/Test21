@@ -196,7 +196,7 @@ class KKPExProvider : MainAPI() {
                 if (rating != null && rating > 0) {
                     this.score = Score.from10(rating)
                 }
-                
+                this.runTime = tmdbEp?.runTime
                 // Định dạng ngày chiếu sang tiếng Việt và gán vào UI
                 this.addDate(tmdbEp?.airDate)
             }
