@@ -189,15 +189,16 @@ class KKPExProvider : MainAPI() {
                 }
                 
                 // Gắn Ngày phát sóng
-                this.date = tmdbEp?.airDate
+                this.description = tmdbEp?.overview
                 
-                // Gắn Điểm Đánh Giá (Format giống trong ảnh: "Đánh giá: 9,5")
-                tmdbEp?.voteAverage?.let { vote ->
-                    if (vote > 0) {
-                        val formattedVote = String.format("%.1f", vote).replace(".", ",")
-                        this.description = "Đánh giá: $formattedVote"
-                    }
+                // Xử lý điểm đánh giá theo thang điểm 10 của Cloudstream
+                val rating = tmdbEp?.vote_average
+                if (rating != null && rating > 0) {
+                    this.score = Score.from10(rating)
                 }
+                
+                // Định dạng ngày chiếu sang tiếng Việt và gán vào UI
+                this.addDate(tmdbEp?.air_date)
             }
         }.sortedBy { it.episode }
 
