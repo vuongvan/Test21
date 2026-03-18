@@ -153,5 +153,6 @@ data class TmdbEpisodeDetail(
     @param:JsonProperty("overview") val overview: String? = null,
     @param:JsonProperty("still_path") val stillPath: String? = null,
     @param:JsonProperty("air_date") val airDate: String? = null,
+    @param:JsonProperty("runtime") val runTime: Int? = null,
     @param:JsonProperty("vote_average") val voteAverage: Double? = null
 )
