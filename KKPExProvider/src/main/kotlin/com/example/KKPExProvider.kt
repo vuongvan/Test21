@@ -143,6 +143,27 @@ class KKPExProvider : MainAPI() {
         val movie = res.movie ?: return null
         
         val rawStatus = movie.status ?: ""
+        
+        val totalEpisodes = movie.episode_total ?: ""
+        val isSeries = totalEpisodes != "1"
+        
+        // ==========================================
+        // 1. LẤY METADATA TỪNG TẬP TỪ TMDB (THUMBNAIL, ĐIỂM, NGÀY)
+        // ==========================================
+        val tmdbId = movie.tmdb?.id
+        val tmdbSeasonNum = movie.tmdb?.season
+        val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
+        
+        if (isSeries && !tmdbId.isNullOrEmpty() && tmdbSeasonNum != null) {
+            val seasonData = KKExUtils.fetchTmdbSeason(tmdbId, tmdbSeasonNum)
+            seasonData?.episodes?.forEach { ep ->
+                ep.episodeNumber?.let { tmdbEpisodesMap[it] = ep }
+            }
+        }
+
+        // ==========================================
+        // 2. XỬ LÝ DANH SÁCH TẬP PHIM (MAP THÔNG TIN TỪ TMDB)
+        // ==========================================
         val episodeMap = mutableMapOf<String, MutableList<String>>()
         res.episodes?.forEach { server ->
             val serverName = server.server_name ?: "HLS"
@@ -153,26 +174,43 @@ class KKPExProvider : MainAPI() {
             }
         }
 
-        // FIX LỖI GOM NHÓM TẬP: Chỉ lấy số đầu tiên tìm thấy trong tên tập
         val episodesList = episodeMap.map { (epName, links) ->
+            val s = Regex("""(\d+)""").find(epName)?.value
+            val epNum = s?.toIntOrNull()
+            val tmdbEp = tmdbEpisodesMap[epNum] // Tra cứu thông tin TMDB dựa theo số tập
+
             newEpisode(links.joinToString("|||")) {
                 this.name = "$epName"
-                val s = Regex("""(\d+)""").find(epName)?.value
-                this.episode = s?.toIntOrNull()
+                this.episode = epNum
+                
+                // Gắn Thumbnail
+                tmdbEp?.stillPath?.let {
+                    this.posterUrl = "https://image.tmdb.org/t/p/w300$it"
+                }
+                
+                // Gắn Ngày phát sóng
+                this.date = tmdbEp?.airDate
+                
+                // Gắn Điểm Đánh Giá (Format giống trong ảnh: "Đánh giá: 9,5")
+                tmdbEp?.voteAverage?.let { vote ->
+                    if (vote > 0) {
+                        val formattedVote = String.format("%.1f", vote).replace(".", ",")
+                        this.description = "Đánh giá: $formattedVote"
+                    }
+                }
             }
         }.sortedBy { it.episode }
+
+        // ==========================================
 
         val finalPoster = KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
         val movieTags = mutableListOf<String>()
         
         // 1. Tag Trạng thái: Ongoing / Completed
         //episode_total từ API
-        val totalEpisodes = movie.episode_total ?: ""
-
-        // 2. Logic xác định phim bộ: 
+         // 2. Logic xác định phim bộ: 
         // Chỉ là phim bộ nếu type là series/hoathinh VÀ episode_total khác "1"
-        val isSeries = totalEpisodes != "1"
-
+        
         if (isSeries) {
             val isCompleted = movie.status == "completed"
             val totalEpisodes = movie.episode_total ?: ""
