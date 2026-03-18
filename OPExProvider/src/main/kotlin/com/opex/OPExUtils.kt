@@ -92,7 +92,7 @@ object OPExUtils {
                 this.episode = num
                 this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
-                
+                this.runTime = tmdbEp?.runtime
                 // Xử lý điểm đánh giá theo thang điểm 10 của Cloudstream
                 val rating = tmdbEp?.vote_average
                 if (rating != null && rating > 0) {
