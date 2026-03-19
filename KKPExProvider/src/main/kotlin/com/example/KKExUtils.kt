@@ -45,6 +45,20 @@ object KKExUtils {
         val url = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber?api_key=$tmdbApiKey&language=vi-VN"
         return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
+
+    suspend fun fetchTmdbBackdrops(tmdbType: String, tmdbId: String): List<String> {
+        // Endpoint: /movie/{id}/images hoặc /tv/{id}/images
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/images?api_key=$tmdbApiKey"
+        return try {
+            val response = parseJson<TmdbImagesResponse>(app.get(url).text)
+            // Lấy file_path của tất cả backdrop và xây dựng link full
+            response.backdrops?.mapNotNull { it.filePath }
+                ?.map { "https://image.tmdb.org/t/p/w1280$it" } // Dùng độ phân giải cao cho backdrop
+                ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
 // --- DATA MODELS ---
 data class KKListResponse(
@@ -160,4 +174,15 @@ data class TmdbEpisodeDetail(
     @param:JsonProperty("air_date") val airDate: String? = null,
     @param:JsonProperty("runtime") val runTime: Int? = null,
     @param:JsonProperty("vote_average") val voteAverage: Double? = null
+)
+
+data class TmdbImagesResponse(
+    @JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
+    @JsonProperty("posters") val posters: List<TmdbImage>? = null
+)
+
+data class TmdbImage(
+    @JsonProperty("file_path") val filePath: String? = null,
+    @JsonProperty("width") val width: Int? = null,
+    @JsonProperty("height") val height: Int? = null
 )
