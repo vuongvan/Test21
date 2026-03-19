@@ -273,11 +273,18 @@ class KKPExProvider : MainAPI() {
         //Score
         val tmdbExtra = tmdbId?.let { KKExUtils.fetchTmdbDetails(tmdbType, it) }
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
-        
+        //poster tmdb
+        val tmdbDetails = tmdbExtra
+    // 2. Ưu tiên Poster từ TMDB, fallback về OPhim
+       val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
+                    ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
+     val backdropUrl = tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                    ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
         //---------
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
-                this.posterUrl = finalPoster
+                this.posterUrl = posterUrl
+                this.backgroundPosterUrl = backdropUrl
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
@@ -289,7 +296,8 @@ class KKPExProvider : MainAPI() {
             // Lấy dữ liệu link từ tập đầu tiên cho phim lẻ
             val movieData = episodesList.firstOrNull()?.data ?: ""
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, movieData) {
-                this.posterUrl = finalPoster
+                this.posterUrl = posterUrl
+                this.backgroundPosterUrl = backdropUrl
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
