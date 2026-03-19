@@ -120,6 +120,7 @@ data class KKDetailResponse(
 
 data class KKMovie(
     @param:JsonProperty("name") val name: String? = null, 
+    @param:JsonProperty("origin_name") val origin_name: String? = null, // Bổ sung trư
     @param:JsonProperty("type") val type: String? = null, 
     @param:JsonProperty("status") val status: String? = null,
     @param:JsonProperty("poster_url") val poster_url: String? = null,
