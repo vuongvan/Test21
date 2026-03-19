@@ -171,7 +171,12 @@ data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @para
 
 data class TmdbCreditsResponse(val cast: List<TmdbCast>?)
 data class TmdbCast(val name: String?, val profile_path: String?, val character: String?)
-data class TmdbDetailResponse(val vote_average: Double?, val overview: String?)
+data class TmdbDetailResponse(
+    val vote_average: Double?, 
+    val poster_path: String?,
+    val backdrop_path: String?, // Ảnh ngang (Backdrop/Cover)
+    val overview: String?
+        )
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
 data class TmdbEpisode(
     val episode_number: Int?, 
