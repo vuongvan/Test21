@@ -52,6 +52,20 @@ object OPExUtils {
         return try { parseJson<TmdbSeasonResponse>(app.get(url).text) } catch (e: Exception) { null }
     }
 
+    suspend fun fetchTmdbBackdrops(tmdbType: String, tmdbId: String): List<String> {
+        // Endpoint: /movie/{id}/images hoặc /tv/{id}/images
+        val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/images?api_key=$TMDB_API_KEY"
+        return try {
+            val response = parseJson<TmdbImagesResponse>(app.get(url).text)
+            // Lấy file_path của tất cả backdrop và xây dựng link full
+            response.backdrops?.mapNotNull { it.filePath }
+                ?.map { "https://image.tmdb.org/t/p/w1280$it" } // Dùng độ phân giải cao cho backdrop
+                ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     suspend fun getMergedEpisodes(
         api: MainAPI,
         tmdbId: String?, 
@@ -186,4 +200,15 @@ data class TmdbEpisode(
     val still_path: String?,
     val air_date: String?,
     val vote_average: Double?
+)
+
+data class TmdbImagesResponse(
+    @JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
+    @JsonProperty("posters") val posters: List<TmdbImage>? = null
+)
+
+data class TmdbImage(
+    @JsonProperty("file_path") val filePath: String? = null,
+    @JsonProperty("width") val width: Int? = null,
+    @JsonProperty("height") val height: Int? = null
 )
