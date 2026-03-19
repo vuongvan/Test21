@@ -150,7 +150,7 @@ class KKPExProvider : MainAPI() {
         // ==========================================
         // 1. LẤY METADATA TỪNG TẬP TỪ TMDB (THUMBNAIL, ĐIỂM, NGÀY)
         // ==========================================
-        val tmdbId = movie.tmdb?.id
+        var tmdbId = movie.tmdb?.id
         val tmdbSeasonNum = movie.tmdb?.season
         val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
         val tmdbType = if (isSeries) "tv" else "movie"
