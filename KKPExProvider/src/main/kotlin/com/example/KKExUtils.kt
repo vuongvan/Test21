@@ -15,7 +15,7 @@ import android.content.Context
 object KKExUtils {
 
     private val tmdbApiKey = "YOUR_API_KEY_HERE" // Giữ nguyên chữ này để lệnh sed tìm thấy
-    
+    private val TMDB_API_KEY = tmdbApiKey
     fun fixPosterUrl(url: String?): String? {
         if (url.isNullOrEmpty()) return null
         return if (url.startsWith("http")) url else "https://phimimg.com/$url"
