@@ -278,13 +278,24 @@ class KKPExProvider : MainAPI() {
     // 2. Ưu tiên Poster từ TMDB, fallback về OPhim
        val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
                     ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
-     val backdropUrl = tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                    ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
-        //---------
+        // --- LOGIC MỚI: Lấy ngẫu nhiên backdrop ---
+        val tmdbBackdrops = tmdbId?.let { OPExUtils.fetchTmdbBackdrops(tmdbType, it) }
+        
+        // Ưu tiên 1: Chọn ngẫu nhiên từ danh sách ảnh TMDB
+        // Ưu tiên 2: Dùng backdrop mặc định từ tmdbDetails (nếu gọi api images lỗi)
+        // Ưu tiên 3: Fallback về thumb của web phim
+        val finalBackdropUrl = if (!tmdbBackdrops.isNullOrEmpty()) {
+            tmdbBackdrops.random() // Hàm random() của Kotlin sẽ chọn ngẫu nhiên 1 phần tử
+        } else {
+            tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
+        }
+        // ------------------------------------------
+      //---------
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = posterUrl
-                this.backgroundPosterUrl = backdropUrl
+                this.backgroundPosterUrl = finalBackdropUrl
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
@@ -297,7 +308,7 @@ class KKPExProvider : MainAPI() {
             val movieData = episodesList.firstOrNull()?.data ?: ""
             newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, movieData) {
                 this.posterUrl = posterUrl
-                this.backgroundPosterUrl = backdropUrl
+                this.backgroundPosterUrl = finalBackdropUrl
                 this.year = movie.year
                 this.plot = fullPlot
                 this.tags = movieTags
