@@ -203,12 +203,12 @@ data class TmdbEpisode(
 )
 
 data class TmdbImagesResponse(
-    @param:@JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
-    @param:@JsonProperty("posters") val posters: List<TmdbImage>? = null
+    @param:JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
+    @param:JsonProperty("posters") val posters: List<TmdbImage>? = null
 )
 
 data class TmdbImage(
-    @param:@JsonProperty("file_path") val filePath: String? = null,
-    @param:@JsonProperty("width") val width: Int? = null,
-    @param:@JsonProperty("height") val height: Int? = null
+    @param:JsonProperty("file_path") val filePath: String? = null,
+    @param:JsonProperty("width") val width: Int? = null,
+    @param:JsonProperty("height") val height: Int? = null
 )
