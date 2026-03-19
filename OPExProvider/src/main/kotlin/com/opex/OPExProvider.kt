@@ -110,8 +110,19 @@ class OPExProvider : MainAPI() {
                     ?: OPExUtils.fixImgUrl(movie.poster_url, cdn)
 
     // 3. Ưu tiên Backdrop từ TMDB, fallback về OPhim (thường là thumb_url)
-       val backdropUrl = tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                    ?: OPExUtils.fixImgUrl(movie.thumb_url, cdn)
+         // --- LOGIC MỚI: Lấy ngẫu nhiên backdrop ---
+        val tmdbBackdrops = tmdbId?.let { OPExUtils.fetchTmdbBackdrops(tmdbType, it) }
+        
+        // Ưu tiên 1: Chọn ngẫu nhiên từ danh sách ảnh TMDB
+        // Ưu tiên 2: Dùng backdrop mặc định từ tmdbDetails (nếu gọi api images lỗi)
+        // Ưu tiên 3: Fallback về thumb của web phim
+        val finalBackdropUrl = if (!tmdbBackdrops.isNullOrEmpty()) {
+            tmdbBackdrops.random() // Hàm random() của Kotlin sẽ chọn ngẫu nhiên 1 phần tử
+        } else {
+            tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                ?: OPExUtils.fixImgUrl(movie.thumb_url, cdn)
+        }
+        // ------------------------------------------
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
@@ -132,14 +143,14 @@ class OPExProvider : MainAPI() {
         return if (isSingleEpisode) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl; 
-                this.backgroundPosterUrl = backdropUrl;
+                this.backgroundPosterUrl = finalBackdropUrl;
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl; 
-                this.backgroundPosterUrl = backdropUrl;
+                this.backgroundPosterUrl = finalBackdropUrl;
                 
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
