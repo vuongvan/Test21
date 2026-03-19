@@ -153,9 +153,19 @@ class KKPExProvider : MainAPI() {
         val tmdbId = movie.tmdb?.id
         val tmdbSeasonNum = movie.tmdb?.season
         val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
+        val tmdbType = if (isSeries) "tv" else "movie"
+
+        if (tmdbId.isNullOrEmpty()) {
+            tmdbId = KKExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+        }
+
+         
+        // Chỗ này nhớ sửa lại: Nếu tìm được tmdbId nhưng không có tmdbSeasonNum (do web thiếu), mặc định cho season = 1
+        val finalSeasonNum = tmdbSeasonNum ?: 1 
         
-        if (isSeries && !tmdbId.isNullOrEmpty() && tmdbSeasonNum != null) {
-            val seasonData = KKExUtils.fetchTmdbSeason(tmdbId, tmdbSeasonNum)
+        
+        if (isSeries && !tmdbId.isNullOrEmpty() && finalSeasonNum != null) {
+            val seasonData = KKExUtils.fetchTmdbSeason(tmdbId, finalSeasonNum)
             seasonData?.episodes?.forEach { ep ->
                 ep.episodeNumber?.let { tmdbEpisodesMap[it] = ep }
             }
