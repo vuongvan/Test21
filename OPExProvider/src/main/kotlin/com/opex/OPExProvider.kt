@@ -104,6 +104,8 @@ class OPExProvider : MainAPI() {
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
+        
+        val tmdbDetails = tmdbExtra
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
                     ?: OPExUtils.fixImgUrl(movie.poster_url, cdn)
 
