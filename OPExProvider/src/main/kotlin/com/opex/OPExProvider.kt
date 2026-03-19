@@ -131,14 +131,14 @@ class OPExProvider : MainAPI() {
 
         return if (isSingleEpisode) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
-                this.posterUrl = poster; 
+                this.posterUrl = posterUrl; 
                 this.backgroundPosterUrl = backdropUrl;
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
-                this.posterUrl = poster; 
+                this.posterUrl = posterUrl; 
                 this.backgroundPosterUrl = backdropUrl;
                 
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
