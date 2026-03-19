@@ -279,7 +279,7 @@ class KKPExProvider : MainAPI() {
        val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
                     ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
         // --- LOGIC MỚI: Lấy ngẫu nhiên backdrop ---
-        val tmdbBackdrops = tmdbId?.let { OPExUtils.fetchTmdbBackdrops(tmdbType, it) }
+        val tmdbBackdrops = tmdbId?.let { KKExUtils.fetchTmdbBackdrops(tmdbType, it) }
         
         // Ưu tiên 1: Chọn ngẫu nhiên từ danh sách ảnh TMDB
         // Ưu tiên 2: Dùng backdrop mặc định từ tmdbDetails (nếu gọi api images lỗi)
