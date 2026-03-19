@@ -53,7 +53,7 @@ object KKExUtils {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
 
-        val searchUrl = "https://api.themoviedb.org/3/search/$tmdbType?api_key=$TMDB_API_KEY&query=$queryName"
+        val searchUrl = "https://api.themoviedb.org/3/search/$tmdbType?api_key=$TMDB_API_KEY&query=$queryName&language=vi-VN"
         
         try {
             val response = app.get(searchUrl).parsedSafe<TmdbSearchResponse>()
@@ -65,7 +65,7 @@ object KKExUtils {
                 val tmdbYear = rawDate?.take(4)?.toIntOrNull()
 
                 // Nếu năm khớp (hoặc chênh lệch tối đa 1 năm để trừ hao)
-                if (tmdbYear != null && Math.abs(tmdbYear - year) <= 1) {
+                if (tmdbYear != null && Math.abs(tmdbYear - year) == 0) {
                     return result.id?.toString()
                 }
             }
