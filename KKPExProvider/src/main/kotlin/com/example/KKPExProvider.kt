@@ -138,7 +138,7 @@ class KKPExProvider : MainAPI() {
     
         
     override suspend fun load(url: String): LoadResponse? {
-        val response = app.get(url).text
+        var response = app.get(url).text
         val res = parseJson<KKDetailResponse>(response)
         val movie = res.movie ?: return null
         
