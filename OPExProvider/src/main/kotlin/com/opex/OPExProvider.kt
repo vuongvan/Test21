@@ -104,8 +104,12 @@ class OPExProvider : MainAPI() {
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
-        val poster = OPExUtils.fixImgUrl(movie.poster_url ?: movie.thumb_url, cdn) ?: data.seoOnPage?.seoSchema?.image ?: ""
-        
+        val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
+                    ?: OPExUtils.fixImgUrl(movie.poster_url, cdn)
+
+    // 3. Ưu tiên Backdrop từ TMDB, fallback về OPhim (thường là thumb_url)
+       val backdropUrl = tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                    ?: OPExUtils.fixImgUrl(movie.thumb_url, cdn)
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
@@ -125,12 +129,17 @@ class OPExProvider : MainAPI() {
 
         return if (isSingleEpisode) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
-                this.posterUrl = poster; this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
+                this.posterUrl = poster; 
+                this.backgroundPosterUrl = backdropUrl;
+                this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
         } else {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
-                this.posterUrl = poster; this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
+                this.posterUrl = poster; 
+                this.backgroundPosterUrl = backdropUrl;
+                
+                this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) 
                     ShowStatus.Completed else ShowStatus.Ongoing
