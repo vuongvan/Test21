@@ -95,7 +95,7 @@ class OPExProvider : MainAPI() {
         
                 // Lấy ID từ web phim trước
         var tmdbId = movie.tmdb?.id?.toString()
-        val tmdbType = if (isSeries) "tv" else "movie"
+        val tmdbType = movie.tmdb?.type ?: if (isSeries) "tv" else "movie"
         val tmdbSeasonNum = movie.tmdb?.season
 
         // CƠ CHẾ DỰ PHÒNG: Nếu web phim không có ID TMDB, tự động tìm kiếm!
