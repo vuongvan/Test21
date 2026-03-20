@@ -66,6 +66,37 @@ object OPExUtils {
         }
     }
 
+        suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
+        val tmdbType = if (isSeries) "tv" else "movie"
+        
+        // Ưu tiên tìm bằng tên gốc (Origin Name) trước, nếu không có thì dùng tên tiếng Việt
+        val queryName = if (!originName.isNullOrEmpty()) originName else name
+        if (queryName.isNullOrEmpty() || year == null) return null
+
+        val searchUrl = "https://api.themoviedb.org/3/search/$tmdbType?api_key=$TMDB_API_KEY&query=$queryName&language=vi-VN"
+        
+        try {
+            val response = app.get(searchUrl).parsedSafe<TmdbSearchResponse>()
+            val results = response?.results ?: return null
+
+            for (result in results) {
+                // Lấy năm phát hành từ TMDB (cắt 4 ký tự đầu của chuỗi ngày tháng)
+                val rawDate = if (isSeries) result.firstAirDate else result.releaseDate
+                val tmdbYear = rawDate?.take(4)?.toIntOrNull()
+
+                // Nếu năm khớp (hoặc chênh lệch tối đa 1 năm để trừ hao)
+                if (tmdbYear != null && Math.abs(tmdbYear - year) == 0) {
+                    return result.id?.toString()
+                }
+            }
+        } catch (e: Exception) {
+            return null
+        }
+        
+        return null
+        }
+        
+
     suspend fun getMergedEpisodes(
         api: MainAPI,
         tmdbId: String?, 
@@ -211,4 +242,19 @@ data class TmdbImage(
     @param:JsonProperty("file_path") val filePath: String? = null,
     @param:JsonProperty("width") val width: Int? = null,
     @param:JsonProperty("height") val height: Int? = null
+)
+
+    // --- DATA CLASSES CHO CHỨC NĂNG TÌM KIẾM TMDB ---
+data class TmdbSearchResponse(
+    @param:JsonProperty("results") val results: List<TmdbSearchResult>? = null
+)
+
+data class TmdbSearchResult(
+    @param:JsonProperty("id") val id: Int? = null,
+    // TMDB dùng 'name' và 'first_air_date' cho TV
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("first_air_date") val firstAirDate: String? = null,
+    // TMDB dùng 'title' và 'release_date' cho Movie
+    @param:JsonProperty("title") val title: String? = null,
+    @param:JsonProperty("release_date") val releaseDate: String? = null
 )
