@@ -67,9 +67,7 @@ class KKPExProvider : MainAPI() {
             if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
-            } else {
-                item.episode_current?.let { addBadge(it) }
-            }
+            } 
 
             // Xử lý Chất lượng
             this.quality = when (item.quality?.uppercase()) {
