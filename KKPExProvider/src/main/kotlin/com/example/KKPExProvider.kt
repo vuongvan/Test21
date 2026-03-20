@@ -1,6 +1,7 @@
 package com.example
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
@@ -68,10 +69,10 @@ class KKPExProvider : MainAPI() {
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
 
             //if (currentEp != null) {
-                if (isDub) addDub(currentEp) 
-                if (isSub) addSub(currentEp)
+                //if (isDub) addDub(currentEp) 
+        //if (isSub) addSub(currentEp)
             //} 
-
+            addDubStatus(isDub, isSub, currentEp, currentEp)
             // Xử lý Chất lượng
             this.quality = when (item.quality?.uppercase()) {
                 "CAM", "HDCAM" -> SearchQuality.Cam
