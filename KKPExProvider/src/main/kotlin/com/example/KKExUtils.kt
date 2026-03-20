@@ -98,8 +98,13 @@ data class KKListResponse(
 )
 
 data class KKSearchResponse(
-    @param:JsonProperty("data") val data: KKListData? = null
+    @param:JsonProperty("data") val data: KKSearchData? = null
 )
+
+data class KKSearchData(
+    @param:JsonProperty("items") val items: List<KKItem>? = null
+)
+
 
 data class KKListData(
     @param:JsonProperty("items") val items: List<KKItem>? = null
