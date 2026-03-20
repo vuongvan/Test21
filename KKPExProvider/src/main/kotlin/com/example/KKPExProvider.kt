@@ -50,6 +50,8 @@ class KKPExProvider : MainAPI() {
                 emptyList()
             }
         }
+        val currentEp = item.episodeCurrent?.filter { char -> char.isDigit() }?.toIntOrNull()
+        
 
         return items.mapNotNull { item ->
             val title = item.name ?: return@mapNotNull null
@@ -60,23 +62,18 @@ class KKPExProvider : MainAPI() {
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = poster
                 // 1. Lấy số tập trực tiếp từ Data Class (Ví dụ: "Tập 12" hoặc "12")
-    // Nếu bạn muốn gán vào biến episode của App (chỉ nhận số Int)
-    this.episode = it.episodeCurrent?.filter { char -> char.isDigit() }?.toIntOrNull()
-
-    // 2. Hiển thị nhãn P.Đề / L.Tiếng giống hệt như ảnh mẫu
-    val language = it.lang?.lowercase() ?: ""
-    val currentEp = it.episodeCurrent ?: ""
-
-    when {
-        language.contains("lồng tiếng") -> {
-            addBadge("L.Tiếng $currentEp")
+    //  nhãn P.Đề / L.Tiếng giống hệt như ảnh mẫu
+    val langStr = movie.lang?.lowercase() ?: ""
+    val isDub = langStr.contains("lồng tiếng")
+    val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
+    
+    // 4. App tự động tạo Badge giống hệt hình bạn gửi
+    if (currentEp != null) {
+        if (isDub) {
+            addDub(currentEp) // Sẽ hiển thị "L.Tiếng Tập {currentEp}"
         }
-        language.contains("vietsub") || language.contains("phụ đề") -> {
-            addBadge("P.Đề $currentEp")
-        }
-        else -> {
-            // Nếu không rõ ngôn ngữ, chỉ hiện số tập hiện tại
-            if (currentEp.isNotBlank()) addBadge(currentEp)
+        if (isSub) {
+            addSub(currentEp) // Sẽ hiển thị "P.Đề Tập {currentEp}"
         }
     }
                 val finalRating = item.tmdb?.vote_average ?: 0.0
