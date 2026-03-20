@@ -38,51 +38,51 @@ class KKPExProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
-        val response = app.get(url).text
-        val items = try {
-            val res = parseJson<KKListResponse>(response)
-            res.data?.items ?: res.items ?: emptyList()
+    val response = app.get(url).text
+    val items = try {
+        val res = parseJson<KKListResponse>(response)
+        res.data?.items ?: res.items ?: emptyList()
+    } catch (e: Exception) {
+        try {
+            val searchRes = parseJson<KKSearchResponse>(response)
+            searchRes.data?.items ?: emptyList()
         } catch (e: Exception) {
-            try {
-                val searchRes = parseJson<KKSearchResponse>(response)
-                searchRes.data?.items ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
+            emptyList()
+        }
+    }
+
+    return items.mapNotNull { item ->
+        val title = item.name ?: return@mapNotNull null
+        val slug = item.slug ?: return@mapNotNull null
+        val href = "$mainUrl/phim/$slug" 
+        val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
+
+        // BẮT BUỘC dùng newAnimeSearchResponse để có hàm addDub/addSub
+        newAnimeSearchResponse(title, href, TvType.TvSeries) {
+            this.posterUrl = poster
+
+            // 1. Chuyển currentEp vào trong mapNotNull để 'item' có hiệu lực
+            val currentEp = item.episodeCurrent?.filter { it.isDigit() }?.toIntOrNull()
+            
+            // 2. Sửa 'movie' thành 'item' cho đúng tên biến vòng lặp
+            val langStr = item.lang?.lowercase() ?: ""
+            val isDub = langStr.contains("lồng tiếng") || langStr.contains("thuyết minh")
+            val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
+            
+            // 3. App sẽ tự động tạo Badge "L.Tiếng Tập X" hoặc "P.Đề Tập X"
+            if (currentEp != null) {
+                if (isDub) addDub(currentEp) 
+                if (isSub) addSub(currentEp)
+            }
+
+            val finalRating = item.tmdb?.vote_average ?: 0.0
+            if (finalRating > 0) {
+                this.score = Score.from10(finalRating)
             }
         }
-        val currentEp = item.episodeCurrent?.filter { char -> char.isDigit() }?.toIntOrNull()
-        
-
-        return items.mapNotNull { item ->
-            val title = item.name ?: return@mapNotNull null
-            val slug = item.slug ?: return@mapNotNull null
-            val href = "$mainUrl/phim/$slug" 
-            val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
-
-            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                this.posterUrl = poster
-                // 1. Lấy số tập trực tiếp từ Data Class (Ví dụ: "Tập 12" hoặc "12")
-    //  nhãn P.Đề / L.Tiếng giống hệt như ảnh mẫu
-    val langStr = movie.lang?.lowercase() ?: ""
-    val isDub = langStr.contains("lồng tiếng") || langStr.contains("thuyết minh")
-    val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
+    }
+    }
     
-    // 4. App tự động tạo Badge giống hệt hình bạn gửi
-    if (currentEp != null) {
-        if (isDub) {
-            addDub(currentEp) // Sẽ hiển thị "L.Tiếng Tập {currentEp}"
-        }
-        if (isSub) {
-            addSub(currentEp) // Sẽ hiển thị "P.Đề Tập {currentEp}"
-        }
-    }
-                val finalRating = item.tmdb?.vote_average ?: 0.0
-                if (finalRating > 0) {
-                    this.score = Score.from10(finalRating)
-                }
-            }
-        }
-    }
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
