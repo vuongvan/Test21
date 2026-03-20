@@ -200,7 +200,8 @@ override suspend fun search(query: String): List<SearchResponse> {
             val tmdbEp = tmdbEpisodesMap[epNum] // Tra cứu thông tin TMDB dựa theo số tập
 
             newEpisode(links.joinToString("|||")) {
-                this.name = "$epName"
+                //this.name = "$epName"
+                this.name = tmdbEp?.name ?: "$epName"
                 this.episode = epNum
                 
                 // Gắn Thumbnail
