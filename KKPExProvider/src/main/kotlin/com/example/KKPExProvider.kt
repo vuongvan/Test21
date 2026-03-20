@@ -75,7 +75,7 @@ class KKPExProvider : MainAPI() {
                 if (isSub) addSub(currentEp)
             } else {
                 // Nếu không có số tập, hiện chữ thô từ API (VD: "Full") vào mục Quality
-                this.quality = item.episode_current
+                this.quality = SearchQuality.getQualityFromName(item.quality) 
             }
 
             // 4. Hiển thị điểm số từ TMDB (Dữ liệu thô bạn gửi có phần này rất tốt)
