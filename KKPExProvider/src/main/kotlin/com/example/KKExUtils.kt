@@ -209,14 +209,14 @@ data class TmdbEpisodeDetail(
 )
 
 data class TmdbImagesResponse(
-    @JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
-    @JsonProperty("posters") val posters: List<TmdbImage>? = null
+    @param:JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
+    @param:JsonProperty("posters") val posters: List<TmdbImage>? = null
 )
 
 data class TmdbImage(
-    @JsonProperty("file_path") val filePath: String? = null,
-    @JsonProperty("width") val width: Int? = null,
-    @JsonProperty("height") val height: Int? = null
+    @param:JsonProperty("file_path") val filePath: String? = null,
+    @param:JsonProperty("width") val width: Int? = null,
+    @param:JsonProperty("height") val height: Int? = null
 )
 
 data class TmdbSearchResponse(
