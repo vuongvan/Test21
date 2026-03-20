@@ -94,12 +94,12 @@ class OPExProvider : MainAPI() {
         val isSeries = movie.episode_total?.trim() != "1"
         
                 // Lấy ID từ web phim trước
-        var tmdbId = movie.tmdb?.id
+        var tmdbId = movie.tmdb?.id?.toString()
         val tmdbType = if (isSeries) "tv" else "movie"
         val tmdbSeasonNum = movie.tmdb?.season
 
         // CƠ CHẾ DỰ PHÒNG: Nếu web phim không có ID TMDB, tự động tìm kiếm!
-        if (tmdbId.isNullOrEmpty()) {
+        if (tmdbId?.isNotEmpty() == true) {
             tmdbId = OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
         }
 
@@ -116,6 +116,7 @@ class OPExProvider : MainAPI() {
  
          
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
+        
         val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
