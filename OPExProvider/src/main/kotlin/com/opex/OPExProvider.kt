@@ -91,13 +91,29 @@ class OPExProvider : MainAPI() {
         val movie = data.item ?: return null
         val cdn = data.APP_DOMAIN_CDN_IMAGE 
 
-        val tmdbId = movie.tmdb?.id?.toString()
-        val isSingleEpisode = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
+        val isSeries = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
         val tmdbType = if (isSingleEpisode) "movie" else "tv"
+
+                // Lấy ID từ web phim trước
+        var tmdbId = movie.tmdb?.id
+        val tmdbType = if (isSeries) "tv" else "movie"
+        val tmdbSeasonNum = movie.tmdb?.season
+
+        // CƠ CHẾ DỰ PHÒNG: Nếu web phim không có ID TMDB, tự động tìm kiếm!
+        if (tmdbId.isNullOrEmpty()) {
+            tmdbId = OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+        }
+
+        val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
         
+        // Chỗ này nhớ sửa lại: Nếu tìm được tmdbId nhưng không có tmdbSeasonNum (do web thiếu), mặc định cho season = 1
+        val finalSeasonNum = tmdbSeasonNum ?: 1 
+
+         // ... (Đoạn mã map tập phim bên dưới giữ nguyên)
+            
         val seasonNumber = movie.tmdb?.season ?: 1
         // Đã sửa: Truyền 'this' vào hàm để nó hiểu ngữ cảnh của MainAPI
-        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, !isSingleEpisode, seasonNumber)
+        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, !isSeries, seasonNumber)
  
          
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
@@ -126,7 +142,7 @@ class OPExProvider : MainAPI() {
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
-        if (!isSingleEpisode) {
+        if (!isSeries) {
             val epCurrent = movie.episode_current ?: ""
             val epTotal = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
             if (epCurrent.isNotEmpty()) {
