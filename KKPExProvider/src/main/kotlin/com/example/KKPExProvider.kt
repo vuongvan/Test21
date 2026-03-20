@@ -73,11 +73,13 @@ class KKPExProvider : MainAPI() {
             if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
-            } else {
-                // Nếu không có số tập, hiện chữ thô từ API (VD: "Full") vào mục Quality
-                this.quality = SearchQuality.getQualityFromName(item.quality) 
+            } 
+            this.quality = when (item.quality?.uppercase()) {
+        "CAM", "HDCAM", "TS" -> SearchQuality.Cam
+        "DVD", "SD" -> SearchQuality.SD
+        else -> SearchQuality.HD // Mặc định là HD cho các trường hợp khác (FullHD, HDRip...)
             }
-
+            
             // 4. Hiển thị điểm số từ TMDB (Dữ liệu thô bạn gửi có phần này rất tốt)
             val finalRating = item.tmdb?.vote_average ?: 0.0
             if (finalRating > 0) {
