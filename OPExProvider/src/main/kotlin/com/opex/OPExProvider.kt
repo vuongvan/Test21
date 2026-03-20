@@ -91,9 +91,8 @@ class OPExProvider : MainAPI() {
         val movie = data.item ?: return null
         val cdn = data.APP_DOMAIN_CDN_IMAGE 
 
-        val isSeries = movie.episode_total?.trim() == "1" || movie.category?.any { it.name?.contains("Phim lẻ", true) == true } ?: false
-        val tmdbType = if (isSingleEpisode) "movie" else "tv"
-
+        val isSeries = movie.episode_total?.trim() != "1"
+        
                 // Lấy ID từ web phim trước
         var tmdbId = movie.tmdb?.id
         val tmdbType = if (isSeries) "tv" else "movie"
