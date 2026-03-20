@@ -177,7 +177,7 @@ data class OPItem(
 
 data class OPTmdb(
     @param:JsonProperty("vote_average") val vote_average: Double? = null, 
-    @param:JsonProperty("id") val id: Any? = null,
+    @param:JsonProperty("id") val id: String? = null,
     @param:JsonProperty("type") val type: String? = null,
     @param:JsonProperty("season") val season: Int? = null // Đã thêm để lấy thông tin mùa
 )
