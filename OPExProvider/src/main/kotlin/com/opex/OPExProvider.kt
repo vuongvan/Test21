@@ -112,7 +112,7 @@ class OPExProvider : MainAPI() {
             
         val seasonNumber = movie.tmdb?.season ?: 1
         // Đã sửa: Truyền 'this' vào hàm để nó hiểu ngữ cảnh của MainAPI
-        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, !isSeries, seasonNumber)
+        val episodeList = OPExUtils.getMergedEpisodes(this, tmdbId, movie.episodes, isSeries, seasonNumber)
  
          
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
