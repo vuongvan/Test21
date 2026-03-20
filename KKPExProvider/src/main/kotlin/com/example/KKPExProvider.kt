@@ -2,6 +2,7 @@ package com.example
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.DubStatus
+import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
