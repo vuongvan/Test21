@@ -110,7 +110,11 @@ data class KKItem(
     @param:JsonProperty("slug") val slug: String? = null, 
     @param:JsonProperty("poster_url") val poster_url: String? = null, 
     @param:JsonProperty("thumb_url") val thumb_url: String? = null,
-    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null
+    @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
+     @param:JsonProperty("episode_current") val episode_current: String? = null,
+    @param:JsonProperty("lang") val lang: String? = null,
+    @param:JsonProperty("quality") val quality: String? = null
+    
 )
 
 data class KKDetailResponse(
