@@ -37,7 +37,7 @@ class KKPExProvider : MainAPI() {
     override var lang = "vi"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     
-private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+ private suspend fun getListFromUrl(url: String): List<SearchResponse> {
     val response = app.get(url).text
     val items = try {
         val res = parseJson<KKListResponse>(response)
@@ -57,35 +57,37 @@ private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         val href = "$mainUrl/phim/$slug" 
         val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
 
-        // Dùng newAnimeSearchResponse để có hàm addDub/addSub
+        // Dùng newAnimeSearchResponse để hiển thị nhãn Sub/Dub chuẩn
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = poster
 
-            // Sửa lỗi 'episodeCurrent' -> dùng 'episode_current' theo Data Class
-            // Sửa lỗi 'it' -> dùng biến tường minh 'char' để Kotlin không nhầm
-            val currentEp = item.episode_current?.filter { char -> char.isDigit() }?.toIntOrNull()
+            // 1. Lấy số tập (Sửa lỗi 'it' và dùng đúng tên biến 'episode_current')
+            val currentEp = item.episode_current?.filter { c -> c.isDigit() }?.toIntOrNull()
             
-            // Sửa lỗi 'lang'
+            // 2. Xử lý ngôn ngữ (Sửa lỗi dùng nhầm 'movie' thành 'item')
             val langStr = item.lang?.lowercase() ?: ""
             val isDub = langStr.contains("lồng tiếng") || langStr.contains("thuyết minh")
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
             
-            // Hiển thị Badge tự động dựa trên số tập
+            // 3. Hiển thị Badge tự động
             if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
             } else {
-                // Nếu không có số tập, hiện chữ từ API vào mục Quality làm Badge thay thế
-                this.quality = item.episode_current 
+                // Nếu không có số tập, hiện chữ thô từ API (VD: "Full") vào mục Quality
+                this.quality = item.episode_current
             }
 
+            // 4. Hiển thị điểm số từ TMDB (Dữ liệu thô bạn gửi có phần này rất tốt)
             val finalRating = item.tmdb?.vote_average ?: 0.0
             if (finalRating > 0) {
                 this.score = Score.from10(finalRating)
             }
         }
     }
-}
+ }
+ 
+
 
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
