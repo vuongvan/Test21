@@ -64,10 +64,10 @@ class KKPExProvider : MainAPI() {
             val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
 
-            if (currentEp != null) {
+            //if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
-            } 
+            //} 
 
             // Xử lý Chất lượng
             this.quality = when (item.quality?.uppercase()) {
@@ -92,7 +92,7 @@ class KKPExProvider : MainAPI() {
         val categories = mutableListOf<Pair<String, String>>()
         
         // Fix cứng phim mới cập nhật
-        categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat?page=$page", "Phim Mới Cập Nhật"))
+        categories.add(Pair("$mainUrl/danh-sach/phim-bo?page=$page", "Phim Mới Cập Nhật"))
         
         val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
         val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
@@ -133,7 +133,7 @@ class KKPExProvider : MainAPI() {
 
 override suspend fun search(query: String): List<SearchResponse> {
     // API search của bạn yêu cầu keyword và có thể thêm limit
-    val url = "$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20"
+    val url = "$mainUrl/v1/api/tim-kiem?keyword=$query&limit=50"
     
     // Gọi hàm dùng chung để xử lý toàn bộ nhãn và dữ liệu
     return getListFromUrl(url)
