@@ -92,7 +92,7 @@ class KKPExProvider : MainAPI() {
         val categories = mutableListOf<Pair<String, String>>()
         
         // Fix cứng phim mới cập nhật
-        categories.add(Pair("$mainUrl/danh-sach/phim-bo?page=$page", "Phim Mới Cập Nhật"))
+        categories.add(Pair("$mainUrl/v1/api/danh-sach/phim-bo?page=$page", "Phim bộ"))
         
         val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
         val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
