@@ -37,7 +37,7 @@ class KKPExProvider : MainAPI() {
     override var lang = "vi"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     
-    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+private suspend fun getListFromUrl(url: String): List<SearchResponse> {
     val response = app.get(url).text
     val items = try {
         val res = parseJson<KKListResponse>(response)
@@ -57,22 +57,26 @@ class KKPExProvider : MainAPI() {
         val href = "$mainUrl/phim/$slug" 
         val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
 
-        // BẮT BUỘC dùng newAnimeSearchResponse để có hàm addDub/addSub
+        // Dùng newAnimeSearchResponse để có hàm addDub/addSub
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = poster
 
-            // 1. Chuyển currentEp vào trong mapNotNull để 'item' có hiệu lực
-            val currentEp = item.episodeCurrent?.filter { it.isDigit() }?.toIntOrNull()
+            // Sửa lỗi 'episodeCurrent' -> dùng 'episode_current' theo Data Class
+            // Sửa lỗi 'it' -> dùng biến tường minh 'char' để Kotlin không nhầm
+            val currentEp = item.episode_current?.filter { char -> char.isDigit() }?.toIntOrNull()
             
-            // 2. Sửa 'movie' thành 'item' cho đúng tên biến vòng lặp
+            // Sửa lỗi 'lang'
             val langStr = item.lang?.lowercase() ?: ""
             val isDub = langStr.contains("lồng tiếng") || langStr.contains("thuyết minh")
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
             
-            // 3. App sẽ tự động tạo Badge "L.Tiếng Tập X" hoặc "P.Đề Tập X"
+            // Hiển thị Badge tự động dựa trên số tập
             if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
+            } else {
+                // Nếu không có số tập, hiện chữ từ API vào mục Quality làm Badge thay thế
+                this.quality = item.episode_current 
             }
 
             val finalRating = item.tmdb?.vote_average ?: 0.0
@@ -81,8 +85,8 @@ class KKPExProvider : MainAPI() {
             }
         }
     }
-    }
-    
+}
+
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
