@@ -141,7 +141,7 @@ class OPExProvider : MainAPI() {
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
         
-        if (!isSeries) {
+        if (isSeries) {
             val epCurrent = movie.episode_current ?: ""
             val epTotal = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
             if (epCurrent.isNotEmpty()) {
@@ -155,7 +155,7 @@ class OPExProvider : MainAPI() {
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val plotClean = (movie.content ?: tmdbExtra?.overview ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        return if (isSingleEpisode) {
+        return if (!isSeries) {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl; 
                 this.backgroundPosterUrl = finalBackdropUrl;
