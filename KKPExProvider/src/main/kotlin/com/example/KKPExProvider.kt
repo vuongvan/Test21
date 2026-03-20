@@ -73,7 +73,7 @@ class KKPExProvider : MainAPI() {
                 //if (isDub) addDub(currentEp) 
         //if (isSub) addSub(currentEp)
             //} 
-            addDubStatus(isDub, isSub, currentEp, currentEp)
+            addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
             // Xử lý Chất lượng
             this.quality = when (item.quality?.uppercase()) {
                 "CAM", "HDCAM" -> SearchQuality.Cam
