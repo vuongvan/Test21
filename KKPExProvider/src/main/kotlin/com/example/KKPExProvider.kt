@@ -64,7 +64,7 @@ class KKPExProvider : MainAPI() {
                 // 1. Lấy số tập trực tiếp từ Data Class (Ví dụ: "Tập 12" hoặc "12")
     //  nhãn P.Đề / L.Tiếng giống hệt như ảnh mẫu
     val langStr = movie.lang?.lowercase() ?: ""
-    val isDub = langStr.contains("lồng tiếng")
+    val isDub = langStr.contains("lồng tiếng") || langStr.contains("thuyết minh")
     val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
     
     // 4. App tự động tạo Badge giống hệt hình bạn gửi
