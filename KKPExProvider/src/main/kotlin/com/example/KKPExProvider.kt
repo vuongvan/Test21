@@ -39,51 +39,48 @@ class KKPExProvider : MainAPI() {
     
  private suspend fun getListFromUrl(url: String): List<SearchResponse> {
     val response = app.get(url).text
+    
+    // Thử parse theo cấu trúc Tìm kiếm (có lớp .data) trước, nếu lỗi thì parse theo kiểu List thường
     val items = try {
-        val res = parseJson<KKListResponse>(response)
-        res.data?.items ?: res.items ?: emptyList()
+        val json = parseJson<KKSearchResponse>(response)
+        json.data?.items ?: emptyList()
     } catch (e: Exception) {
-        try {
-            val searchRes = parseJson<KKSearchResponse>(response)
-            searchRes.data?.items ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
+        val json = parseJson<KKListResponse>(response)
+        json.data?.items ?: emptyList()
     }
 
     return items.mapNotNull { item ->
         val title = item.name ?: return@mapNotNull null
         val slug = item.slug ?: return@mapNotNull null
-        val href = "$mainUrl/phim/$slug" 
+        val href = "$mainUrl/phim/$slug"
         val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
 
-        // Dùng newAnimeSearchResponse để hiển thị nhãn Sub/Dub chuẩn
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = poster
-
-            // 1. Lấy số tập (Sửa lỗi 'it' và dùng đúng tên biến 'episode_current')
+            
+            // Xử lý Badge (P.Đề/L.Tiếng)
             val currentEp = item.episode_current?.filter { c -> c.isDigit() }?.toIntOrNull()
-            
-            // 2. Xử lý ngôn ngữ (Sửa lỗi dùng nhầm 'movie' thành 'item')
             val langStr = item.lang?.lowercase() ?: ""
-            val isDub = langStr.contains("lồng tiếng") || langStr.contains("thuyết minh")
-            val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề") || !isDub
-            
-            // 3. Hiển thị Badge tự động
+            val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
+            val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
+
             if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
-            } 
-            this.quality = when (item.quality?.uppercase()) {
-        "CAM", "HDCAM", "TS" -> SearchQuality.Cam
-        "DVD", "SD" -> SearchQuality.SD
-        else -> SearchQuality.HD // Mặc định là HD cho các trường hợp khác (FullHD, HDRip...)
+            } else {
+                item.episode_current?.let { addBadge(it) }
             }
-            
-            // 4. Hiển thị điểm số từ TMDB (Dữ liệu thô bạn gửi có phần này rất tốt)
-            val finalRating = item.tmdb?.vote_average ?: 0.0
-            if (finalRating > 0) {
-                this.score = Score.from10(finalRating)
+
+            // Xử lý Chất lượng
+            this.quality = when (item.quality?.uppercase()) {
+                "CAM", "HDCAM" -> SearchQuality.Cam
+                else -> SearchQuality.HD
+            }
+
+            // Xử lý Điểm số
+            val rating = item.tmdb?.vote_average ?: 0.0
+            if (rating > 0) {
+                this.score = Score.from10(rating)
             }
         }
     }
@@ -136,29 +133,14 @@ class KKPExProvider : MainAPI() {
         return newHomePageResponse(homePageLists, true)
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20"
-        val response = app.get(url).text
-        val data = parseJson<KKSearchResponse>(response)
-        
-        return data.data?.items?.mapNotNull { item ->
-            val title = item.name ?: return@mapNotNull null
-            val href = "$mainUrl/phim/${item.slug}"
-            
-            // Dùng Movie hay TvSeries ở đây đều được, quan trọng là phần bên trong { }
-            newMovieSearchResponse(title, href, TvType.Movie) {
-                this.posterUrl = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
-                
-                // --- THÊM ĐOẠN NÀY ĐỂ HIỆN ĐIỂM KHI TÌM KIẾM ---
-                val rating = item.tmdb?.vote_average ?: 0.0
-                if (rating > 0) {
-                    this.score = Score.from10(rating)
-                }
-                // ----------------------------------------------
-            }
-        } ?: emptyList()
-    }
+override suspend fun search(query: String): List<SearchResponse> {
+    // API search của bạn yêu cầu keyword và có thể thêm limit
+    val url = "$mainUrl/v1/api/tim-kiem?keyword=$query&limit=20"
     
+    // Gọi hàm dùng chung để xử lý toàn bộ nhãn và dữ liệu
+    return getListFromUrl(url)
+}
+
     
     
         
