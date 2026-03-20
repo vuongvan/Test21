@@ -59,7 +59,10 @@ class KKPExProvider : MainAPI() {
             this.posterUrl = poster
             
             // Xử lý Badge (P.Đề/L.Tiếng)
-            val currentEp = item.episode_current?.filter { c -> c.isDigit() }?.toIntOrNull()
+            val currentEp = item.episode_current
+    ?.substringBefore("/") 
+    ?.filter { c -> c.isDigit() }
+    ?.toIntOrNull()
             val langStr = item.lang?.lowercase() ?: ""
             val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
