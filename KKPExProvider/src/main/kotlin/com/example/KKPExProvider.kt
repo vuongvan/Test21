@@ -164,7 +164,7 @@ class KKPExProvider : MainAPI() {
         val finalSeasonNum = tmdbSeasonNum ?: 1 
         
         
-        if (isSeries && !tmdbId.isNullOrEmpty() && finalSeasonNum != null) {
+        if (isSeries && !tmdbId.isNullOrEmpty()) {
             val seasonData = KKExUtils.fetchTmdbSeason(tmdbId, finalSeasonNum)
             seasonData?.episodes?.forEach { ep ->
                 ep.episodeNumber?.let { tmdbEpisodesMap[it] = ep }
