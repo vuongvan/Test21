@@ -169,6 +169,7 @@ data class OPItem(
     @param:JsonProperty("slug") val slug: String? = null, 
     @param:JsonProperty("poster_url") val poster_url: String? = null, 
     @param:JsonProperty("thumb_url") val thumb_url: String? = null, 
+    @param:JsonProperty("lang") val lang: String? = null, 
     @param:JsonProperty("quality") val quality: String? = null, 
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, 
     @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null, 
