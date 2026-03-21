@@ -63,10 +63,10 @@ class SettingsFragment(
 
         val categoryEdits = mutableListOf<EditText>()
         val categoryNameEdits = mutableListOf<EditText>()
-        val categoryNames = listOf("Danh sách 1", "Danh sách 2", "Danh sách 3", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+        val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         for (i in 1..6) {
             val categoryLabel = TextView(ctx).apply {
-                text = categoryNames[i - 1] + ":"
+                text = "Danh sách $i:"
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setPadding(0, 12, 0, 8)
