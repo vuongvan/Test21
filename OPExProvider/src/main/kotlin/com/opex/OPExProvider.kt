@@ -1,6 +1,9 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.DubStatus
+import com.lagradost.cloudstream3.addDubStatus
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -74,7 +77,16 @@ class OPExProvider : MainAPI() {
             val items = data.data?.items ?: data.items 
             items?.filter { it.episode_current?.contains("trailer", true) != true }?.map { it ->
                 val scoreVal = it.tmdb?.vote_average ?: it.imdb?.vote_average ?: 0.0
-                newMovieSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.Movie) {
+                
+                newAnimeSearchResponse(it.name ?: "", "$mainUrl/v1/api/phim/${it.slug}", TvType.TvSeries) {
+                    val currentEp = it.episode_current
+    ?.substringBefore("/") 
+    ?.filter { c -> c.isDigit() }
+    ?.toIntOrNull()
+            val langStr = it.lang?.lowercase() ?: ""
+            val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
+            val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
+                    addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
                     this.posterUrl = OPExUtils.fixImgUrl(it.thumb_url ?: it.poster_url, cdn)
                     if (scoreVal > 0) this.score = Score.from10(scoreVal)
                     this.quality = if (it.quality?.uppercase() == "CAM") SearchQuality.Cam else SearchQuality.HD
