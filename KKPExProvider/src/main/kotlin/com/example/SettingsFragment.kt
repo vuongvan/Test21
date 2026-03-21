@@ -91,9 +91,9 @@ class SettingsFragment(
             }
 
             val defaultValue = when (i) {
-                1 -> "quoc-gia/trung-quoc"
-                2 -> "quoc-gia/han-quoc"
-                3 -> "danh-sach/hoat-hinh"
+                1 -> "v1/api/quoc-gia/trung-quoc"
+                2 -> "v1/api/quoc-gia/han-quoc"
+                3 -> "v1/api/danh-sach/hoat-hinh"
                 else -> ""
             }
 
