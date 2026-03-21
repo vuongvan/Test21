@@ -78,10 +78,8 @@ class KKPExProvider : MainAPI() {
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
 
             // Hiển thị đồng thời L.Tiếng và P.Đề nếu phim có cả hai (giống ảnh Trending)
-            if (currentEp != null) {
-                if (isDub) addDub(currentEp) 
-                if (isSub) addSub(currentEp)
-            } 
+            addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
+          
 
             // 4. XỬ LÝ CHẤT LƯỢNG
             this.quality = when (item.quality?.uppercase()) {
