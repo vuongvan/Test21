@@ -6,7 +6,7 @@ on:
       - dev
     paths:
       - 'OPExProvider/build.gradle.kts'
-      - 'KKExProvider/build.gradle.kts'
+      - 'KKPExProvider/build.gradle.kts'
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       - name: Process Versions
         run: |
           # Danh sách các file cần kiểm tra
-          FILES=("OPExProvider/build.gradle.kts" "KKExProvider/build.gradle.kts")
+          FILES=("OPExProvider/build.gradle.kts" "KKPExProvider/build.gradle.kts")
           UPDATED_FILES=()
 
           for FILE in "${FILES[@]}"; do
@@ -52,7 +52,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           # Add tất cả thay đổi
-          git add OPExProvider/build.gradle.kts KKExProvider/build.gradle.kts
+          git add OPExProvider/build.gradle.kts KKPExProvider/build.gradle.kts
           
           # Kiểm tra xem thực tế có gì thay đổi để commit không
           if git diff --staged --quiet; then
