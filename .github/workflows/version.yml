@@ -1,0 +1,63 @@
+name: Auto Increment Multi-Provider Version
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'OPExProvider/build.gradle.kts'
+      - 'KKExProvider/build.gradle.kts'
+  workflow_dispatch:
+
+jobs:
+  increment-versions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Process Versions
+        run: |
+          # Danh sách các file cần kiểm tra
+          FILES=("OPExProvider/build.gradle.kts" "KKExProvider/build.gradle.kts")
+          UPDATED_FILES=()
+
+          for FILE in "${FILES[@]}"; do
+            if [ -f "$FILE" ]; then
+              # 1. Trích xuất version hiện tại
+              CURRENT_VERSION=$(grep -oP 'version\s*=\s*\K[0-9]+' "$FILE")
+              
+              if [ ! -z "$CURRENT_VERSION" ]; then
+                # 2. Tính version mới
+                NEXT_VERSION=$((CURRENT_VERSION + 1))
+                echo "Updating $FILE: $CURRENT_VERSION -> $NEXT_VERSION"
+                
+                # 3. Ghi vào file
+                sed -i "s/version = $CURRENT_VERSION/version = $NEXT_VERSION/g" "$FILE"
+                UPDATED_FILES+=("$FILE")
+              else
+                echo "Skip: Không tìm thấy version trong $FILE"
+              fi
+            fi
+          done
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add tất cả thay đổi
+          git add OPExProvider/build.gradle.kts KKExProvider/build.gradle.kts
+          
+          # Kiểm tra xem thực tế có gì thay đổi để commit không
+          if git diff --staged --quiet; then
+            echo "Không có thay đổi nào để commit."
+          else
+            git commit -m "chore: auto bump versions [skip ci]"
+            git push
+          fi
