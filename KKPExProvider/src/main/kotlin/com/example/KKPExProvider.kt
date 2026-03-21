@@ -39,55 +39,68 @@ class KKPExProvider : MainAPI() {
     override var lang = "vi"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     
- private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
     val response = app.get(url).text
     
-    // Thử parse theo cấu trúc Tìm kiếm (có lớp .data) trước, nếu lỗi thì parse theo kiểu List thường
+    // 1. XỬ LÝ LINH HOẠT CẢ 2 CẤU TRÚC JSON
     val items = try {
-        val json = parseJson<KKSearchResponse>(response)
-        json.data?.items ?: emptyList()
+        val jsonSearch = parseJson<KKSearchResponse>(response)
+        if (jsonSearch.data?.items != null) {
+            jsonSearch.data.items // Cấu trúc Search (có .data)
+        } else {
+            // Nếu không có .data, thử parse theo cấu trúc Phim Mới (items trực tiếp)
+            parseJson<KKListResponse>(response).items ?: emptyList()
+        }
     } catch (e: Exception) {
-        val json = parseJson<KKListResponse>(response)
-        json.data?.items ?: emptyList()
+        emptyList()
     }
 
     return items.mapNotNull { item ->
         val title = item.name ?: return@mapNotNull null
         val slug = item.slug ?: return@mapNotNull null
         val href = "$mainUrl/phim/$slug"
+        
+        // Đảm bảo dùng KKExUtils để fix URL ảnh nếu cần
         val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
 
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = poster
             
-            // Xử lý Badge (P.Đề/L.Tiếng)
-            val currentEp = item.episode_current
-    ?.substringBefore("/") 
-    ?.filter { c -> c.isDigit() }
-    ?.toIntOrNull()
+            // 2. SỬA LỖI 3232: Chỉ lấy số tập hiện tại trước dấu "/"
+            val epText = item.episode_current ?: ""
+            val currentEp = epText.substringBefore("/")
+                                .filter { it.isDigit() }
+                                .toIntOrNull()
+            
+            // 3. XỬ LÝ NGÔN NGỮ (Badge)
             val langStr = item.lang?.lowercase() ?: ""
             val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
 
-            //if (currentEp != null) {
-                //if (isDub) addDub(currentEp) 
-        //if (isSub) addSub(currentEp)
-            //} 
-            addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
-            // Xử lý Chất lượng
+            // Hiển thị đồng thời L.Tiếng và P.Đề nếu phim có cả hai (giống ảnh Trending)
+            if (currentEp != null) {
+                if (isDub) addDub(currentEp) 
+                if (isSub) addSub(currentEp)
+            } else {
+                // Nếu không có số (ví dụ: "Full"), dùng addBadge để hiện text thô
+                addBadge(epText)
+            }
+
+            // 4. XỬ LÝ CHẤT LƯỢNG
             this.quality = when (item.quality?.uppercase()) {
                 "CAM", "HDCAM" -> SearchQuality.Cam
                 else -> SearchQuality.HD
             }
 
-            // Xử lý Điểm số
+            // 5. XỬ LÝ ĐIỂM SỐ (Lấy từ tmdb.vote_average)
             val rating = item.tmdb?.vote_average ?: 0.0
             if (rating > 0) {
                 this.score = Score.from10(rating)
             }
         }
     }
- }
+    }
+    
  
 
 
