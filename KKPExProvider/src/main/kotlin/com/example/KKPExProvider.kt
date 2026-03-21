@@ -81,10 +81,7 @@ class KKPExProvider : MainAPI() {
             if (currentEp != null) {
                 if (isDub) addDub(currentEp) 
                 if (isSub) addSub(currentEp)
-            } else {
-                // Nếu không có số (ví dụ: "Full"), dùng addBadge để hiện text thô
-                addBadge(epText)
-            }
+            } 
 
             // 4. XỬ LÝ CHẤT LƯỢNG
             this.quality = when (item.quality?.uppercase()) {
