@@ -207,7 +207,7 @@ class SettingsFragment(
                 }
                 domainEdit.setText(KKPExProvider().mainUrl)
                 val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
-                val categoryDefaultPaths = listOf("quoc-gia/trung-quoc", "quoc-gia/han-quoc", "danh-sach/hoat-hinh", "", "", "")
+                val categoryDefaultPaths = listOf("v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "", "")
                 for (i in 0..5) {
                     categoryNameEdits.getOrNull(i)?.setText(categoryNames[i])
                     categoryEdits.getOrNull(i)?.setText(categoryDefaultPaths[i])
