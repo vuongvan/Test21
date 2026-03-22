@@ -17,36 +17,23 @@ class SettingsFragment(
     private val sharedPref: SharedPreferences,
 ) : DialogFragment() {
 
-    // Giao diện cài đặt chính
     class PreferenceInside : PreferenceFragmentCompat() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             val context = preferenceManager.context
             val screen = preferenceManager.createPreferenceScreen(context)
 
-            // --- PHẦN 1: CẤU HÌNH DOMAIN ---
-            val domainCat = PreferenceCategory(context).apply { title = "🌐 Cấu hình Domain" }
+            // --- PHẦN 1: CẤU HÌNH DOMAIN (CHỈ 1 DOMAIN) ---
+            val domainCat = PreferenceCategory(context).apply { title = "🌐 Cấu hình Nguồn Phim" }
             screen.addPreference(domainCat)
 
-            val activeDomainIdx = ListPreference(context).apply {
-                key = "selected_domain_index"
-                title = "Chọn Domain đang hoạt động"
-                summary = "Đang sử dụng: %s"
-                entries = arrayOf("Domain 1", "Domain 2", "Domain 3", "Domain 4", "Domain 5", "Domain 6")
-                entryValues = arrayOf("0", "1", "2", "3", "4", "5")
-                setDefaultValue("0")
+            val domainEdit = EditTextPreference(context).apply {
+                key = "kkpex_domain" // Key này phải khớp với key trong Provider của bạn
+                title = "Chỉnh sửa Domain"
+                summary = "Hiện tại: %s"
+                dialogTitle = "Nhập URL (vd: https://ophim1.com)"
+                setDefaultValue("https://ophim1.com")
             }
-            domainCat.addPreference(activeDomainIdx)
-
-            for (i in 0..5) {
-                val domainEdit = EditTextPreference(context).apply {
-                    key = "custom_domain_$i"
-                    title = "Chỉnh sửa Domain ${i + 1}"
-                    summary = "URL: %s"
-                    dialogTitle = "Nhập URL cho Domain ${i + 1}"
-                    setDefaultValue(if (i == 0) "https://ophim1.com" else "https://domain${i+1}.com")
-                }
-                domainCat.addPreference(domainEdit)
-            }
+            domainCat.addPreference(domainEdit)
 
             // --- PHẦN 2: CẤU HÌNH DANH SÁCH PHIM ---
             val movieCat = PreferenceCategory(context).apply { title = "⚙️ Cấu hình Danh Sách Phim" }
@@ -56,42 +43,41 @@ class SettingsFragment(
             val defaultNames = listOf("Mới cập nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
 
             for (i in 1..6) {
-                // Tạo một màn hình con cho mỗi danh sách (nhấn vào mới hiện chỉnh sửa)
-                val subScreen = preferenceManager.createPreferenceScreen(context).apply {
-                    key = "sub_screen_$i"
-                    title = "Danh sách $i: ${preferenceManager.sharedPreferences?.getString("cat_name_$i", defaultNames[i-1])}"
-                    summary = "Nhấn để đổi tên và đường dẫn API"
+                // Tiêu đề nhóm cho từng danh sách
+                val groupCat = PreferenceCategory(context).apply { 
+                    title = "Danh sách $i"
                 }
+                screen.addPreference(groupCat)
 
+                // Chỉnh sửa tên - Nhấn vào sẽ hiện hộp thoại nhập
                 val nameEdit = EditTextPreference(context).apply {
                     key = "cat_name_$i"
-                    title = "Tên hiển thị"
-                    summary = "Hiện tại: %s"
+                    title = "  Tên hiển thị $i"
+                    summary = "Đang đặt là: %s"
+                    dialogTitle = "Nhập tên cho danh sách $i"
                     setDefaultValue(defaultNames[i-1])
-                    setOnPreferenceChangeListener { _, newValue ->
-                        subScreen.title = "Danh sách $i: $newValue"
-                        true
-                    }
                 }
 
+                // Chỉnh sửa đường dẫn - Nhấn vào sẽ hiện hộp thoại nhập
                 val pathEdit = EditTextPreference(context).apply {
                     key = "cat_path_$i"
-                    title = "Đường dẫn API"
-                    summary = "Hiện tại: %s"
+                    title = "  Đường dẫn API $i"
+                    summary = "Đang chạy: %s"
+                    dialogTitle = "Nhập path (vd: v1/api/phim-bo)"
                     setDefaultValue(defaultPaths[i-1])
                 }
 
-                subScreen.addPreference(nameEdit)
-                subScreen.addPreference(pathEdit)
-                movieCat.addPreference(subScreen)
+                groupCat.addPreference(nameEdit)
+                groupCat.addPreference(pathEdit)
             }
 
             // --- PHẦN 3: THAO TÁC ---
-            val actionCat = PreferenceCategory(context).apply { title = "Thao tác" }
+            val actionCat = PreferenceCategory(context).apply { title = "Hệ thống" }
             screen.addPreference(actionCat)
 
             actionCat.addPreference(Preference(context).apply {
                 title = "💾 Lưu & Khởi động lại"
+                summary = "Nhấn để áp dụng các thay đổi"
                 setOnPreferenceClickListener {
                     (parentFragment as? SettingsFragment)?.showRestartDialog()
                     true
@@ -113,17 +99,15 @@ class SettingsFragment(
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        val root = FrameLayout(requireContext()).apply {
-            id = View.generateViewId()
-        }
+        val root = FrameLayout(requireContext()).apply { id = View.generateViewId() }
         childFragmentManager.beginTransaction().replace(root.id, PreferenceInside()).commit()
         return root
     }
 
     fun showRestartDialog() {
         AlertDialog.Builder(requireContext())
-            .setTitle("Lưu cấu hình")
-            .setMessage("Cấu hình đã tự động lưu. Khởi động lại ứng dụng để áp dụng?")
+            .setTitle("Xác nhận")
+            .setMessage("Thay đổi sẽ có hiệu lực sau khi khởi động lại. Tiếp tục?")
             .setPositiveButton("Có") { _, _ -> restartApp() }
             .setNegativeButton("Không", null)
             .show()
