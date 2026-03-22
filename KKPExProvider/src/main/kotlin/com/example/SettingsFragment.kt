@@ -4,248 +4,124 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.text.InputType
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.fragment.app.DialogFragment
+import android.widget.Toast
+import androidx.preference.*
 import com.lagradost.cloudstream3.CommonActivity.showToast
 
 class SettingsFragment(
-    plugin: KKPExPlugin,
+    private val plugin: KKPExPlugin,
     private val sharedPref: SharedPreferences,
-) : DialogFragment() {
+) : PreferenceFragmentCompat() {
 
-    override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        val ctx = requireContext()
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+        val context = preferenceManager.context
+        val screen = preferenceManager.createPreferenceScreen(context)
 
-        val scrollView = android.widget.ScrollView(ctx).apply {
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        // --- 1. CẤU HÌNH DOMAIN ---
+        val domainCat = PreferenceCategory(context).apply {
+            title = "🌐 Cấu hình Domain (Nguồn Phim)"
+        }
+        screen.addPreference(domainCat)
+
+        // Chọn domain hoạt động
+        val activeDomainIdx = ListPreference(context).apply {
+            key = "selected_domain_index"
+            title = "Chọn Domain đang dùng"
+            summary = "Đang sử dụng: %s"
+            entries = arrayOf("Domain 1", "Domain 2", "Domain 3", "Domain 4", "Domain 5", "Domain 6")
+            entryValues = arrayOf("0", "1", "2", "3", "4", "5")
+            setDefaultValue("0")
+        }
+        domainCat.addPreference(activeDomainIdx)
+
+        // Danh sách 6 Domain để chỉnh sửa
+        for (i in 0..5) {
+            val domainEdit = EditTextPreference(context).apply {
+                key = "custom_domain_$i"
+                title = "Chỉnh sửa Domain ${i + 1}"
+                summary = "URL: %s"
+                dialogTitle = "Nhập URL cho Domain ${i + 1}"
+                setDefaultValue(if (i == 0) KKPExProvider().mainUrl else "https://domain${i+1}.com")
+            }
+            domainCat.addPreference(domainEdit)
         }
 
-        val layout = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad, pad, pad)
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        // --- 2. CẤU HÌNH DANH SÁCH PHIM (CATEGORY) ---
+        val movieCat = PreferenceCategory(context).apply {
+            title = "⚙️ Cấu hình Danh Sách Phim"
         }
+        screen.addPreference(movieCat)
 
-        // Domain settings
-        val domainLabel = TextView(ctx).apply {
-            text = "Domain:"
-            textSize = 14f
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
+        val defaultPaths = listOf("danh-sach/phim-moi-cap-nhat-v3", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
+        val defaultNames = listOf("Mới cập nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
 
-        val domainEdit = EditText(ctx).apply {
-            hint = "Domain (e.g. https://example.com)"
-            inputType = InputType.TYPE_TEXT_VARIATION_URI
-            setText(sharedPref.getString(KKPExProvider.PREF_DOMAIN, KKPExProvider().mainUrl))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
-        // Category settings
-        val categoryTitleLabel = TextView(ctx).apply {
-            text = "⚙️ Cài Đặt Danh Sách Phim"
-            textSize = 16f
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setPadding(0, 24, 0, 12)
-        }
-
-        val categoryDescLabel = TextView(ctx).apply {
-            text = "Nhập đường dẫn API sau domain. Ví dụ: quoc-gia/trung-quoc, v1/api/phim-bo, v.v. Để trống để bỏ qua danh sách này.\n\n3 danh sách đầu có giá trị mặc định: Phim Trung Quốc, Phim Hàn Quốc, Phim Hoạt Hình"
-            textSize = 12f
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
-        val categoryEdits = mutableListOf<EditText>()
-        val categoryNameEdits = mutableListOf<EditText>()
-        val categoryNames = listOf("Mới cập nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         for (i in 1..6) {
-            val categoryLabel = TextView(ctx).apply {
-                text = "Danh sách $i:"
-                textSize = 14f
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding(0, 12, 0, 8)
+            // Dùng PreferenceScreen con để gom nhóm Name và Path của từng danh sách
+            val subScreen = preferenceManager.createPreferenceScreen(context).apply {
+                key = "sub_category_$i"
+                title = "Danh sách $i: ${sharedPref.getString("cat_name_$i", defaultNames[i-1])}"
+                summary = "Nhấn để đổi tên và đường dẫn API"
             }
 
-            val preKey = when (i) {
-                1 -> KKPExProvider.PREF_CATEGORY_1
-                2 -> KKPExProvider.PREF_CATEGORY_2
-                3 -> KKPExProvider.PREF_CATEGORY_3
-                4 -> KKPExProvider.PREF_CATEGORY_4
-                5 -> KKPExProvider.PREF_CATEGORY_5
-                else -> KKPExProvider.PREF_CATEGORY_6
+            val nameEdit = EditTextPreference(context).apply {
+                key = "cat_name_$i"
+                title = "Tên hiển thị"
+                summary = "Hiện tại: %s"
+                setDefaultValue(defaultNames[i-1])
             }
 
-            val preNameKey = when (i) {
-                1 -> KKPExProvider.PREF_CATEGORY_1_NAME
-                2 -> KKPExProvider.PREF_CATEGORY_2_NAME
-                3 -> KKPExProvider.PREF_CATEGORY_3_NAME
-                4 -> KKPExProvider.PREF_CATEGORY_4_NAME
-                5 -> KKPExProvider.PREF_CATEGORY_5_NAME
-                else -> KKPExProvider.PREF_CATEGORY_6_NAME
+            val pathEdit = EditTextPreference(context).apply {
+                key = "cat_path_$i"
+                title = "Đường dẫn API"
+                summary = "Hiện tại: %s"
+                setDefaultValue(defaultPaths[i-1])
             }
 
-            val defaultValue = when (i) {
-                1 -> "danh-sach/phim-moi-cap-nhat-v3"
-                2 -> "v1/api/quoc-gia/trung-quoc"
-                3 -> "v1/api/quoc-gia/han-quoc"
-                4 -> "v1/api/danh-sach/hoat-hinh"
-                else -> ""
+            // Khi đổi tên ở trong, cập nhật luôn tiêu đề ở ngoài
+            nameEdit.setOnPreferenceChangeListener { _, newValue ->
+                subScreen.title = "Danh sách $i: $newValue"
+                true
             }
 
-            // Name input
-            val categoryNameLabel = TextView(ctx).apply {
-                text = "  Tên hiển thị:"
-                textSize = 12f
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding(0, 8, 0, 4)
-            }
-
-            val categoryNameEdit = EditText(ctx).apply {
-                hint = "Nhập tên tuỳ chỉnh (vd: Phim Trung Quốc)"
-                setText(sharedPref.getString(preNameKey, categoryNames[i - 1]))
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding(10, 8, 10, 8)
-            }
-
-            // Path input
-            val categoryPathLabel = TextView(ctx).apply {
-                text = "  Đường dẫn API:"
-                textSize = 12f
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding(0, 8, 0, 4)
-            }
-
-            val categoryEdit = EditText(ctx).apply {
-                hint = "Ví dụ: quoc-gia/han-quoc hoặc v1/api/phim-le"
-                setText(sharedPref.getString(preKey, defaultValue))
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding(10, 8, 10, 8)
-            }
-
-            layout.addView(categoryLabel)
-            layout.addView(categoryNameLabel)
-            layout.addView(categoryNameEdit)
-            layout.addView(categoryPathLabel)
-            layout.addView(categoryEdit)
-            categoryNameEdits.add(categoryNameEdit)
-            categoryEdits.add(categoryEdit)
+            subScreen.addPreference(nameEdit)
+            subScreen.addPreference(pathEdit)
+            movieCat.addPreference(subScreen)
         }
 
-        // Save button
-        val saveBtn = Button(ctx).apply {
-            text = "Lưu Thay Đổi"
-            setPadding(16, 8, 16, 8)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = 16
-            }
-            setOnClickListener {
-                val domain = domainEdit.text.toString().trim()
-                
-                if (domain.isEmpty()) {
-                    showToast("Domain không thể trống")
-                    return@setOnClickListener
-                }
-                
-                sharedPref.edit().apply {
-                    putString(KKPExProvider.PREF_DOMAIN, domain)
-                    // Save custom categories and names
-                    putString(KKPExProvider.PREF_CATEGORY_1, categoryEdits.getOrNull(0)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_1_NAME, categoryNameEdits.getOrNull(0)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_2, categoryEdits.getOrNull(1)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_2_NAME, categoryNameEdits.getOrNull(1)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_3, categoryEdits.getOrNull(2)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_3_NAME, categoryNameEdits.getOrNull(2)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_4, categoryEdits.getOrNull(3)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_4_NAME, categoryNameEdits.getOrNull(3)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_5, categoryEdits.getOrNull(4)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_5_NAME, categoryNameEdits.getOrNull(4)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_6, categoryEdits.getOrNull(5)?.text.toString().trim())
-                    putString(KKPExProvider.PREF_CATEGORY_6_NAME, categoryNameEdits.getOrNull(5)?.text.toString().trim())
-                    apply()
-                }
-                
-                showToast("Lưu thành công")
-                AlertDialog.Builder(ctx)
-                    .setTitle("Lưu & Khởi Động Lại")
-                    .setMessage("Thay đổi đã được lưu. Khởi động lại ứng dụng để áp dụng?")
-                    .setPositiveButton("Có") { _, _ ->
-                        dismiss()
-                        restartApp()
-                    }
-                    .setNegativeButton("Không") { _, _ -> dismiss() }
+        // --- 3. NÚT THAO TÁC (LƯU/RESET) ---
+        val actionCat = PreferenceCategory(context).apply { title = "Thao tác" }
+        screen.addPreference(actionCat)
+
+        // Nút Lưu & Khởi động lại
+        val savePref = Preference(context).apply {
+            title = "💾 Lưu & Khởi động lại"
+            summary = "Áp dụng thay đổi ngay lập tức"
+            setOnPreferenceClickListener {
+                AlertDialog.Builder(context)
+                    .setTitle("Xác nhận")
+                    .setMessage("Bạn có muốn khởi động lại ứng dụng để áp dụng cấu hình mới?")
+                    .setPositiveButton("Có") { _, _ -> restartApp() }
+                    .setNegativeButton("Không", null)
                     .show()
+                true
             }
         }
+        actionCat.addPreference(savePref)
 
-        // Reset button
-        val resetBtn = Button(ctx).apply {
-            text = "Đặt Lại"
-            setPadding(16, 8, 16, 8)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = 8
-            }
-            setOnClickListener {
-                sharedPref.edit().apply {
-                    remove(KKPExProvider.PREF_CATEGORY_1)
-                    remove(KKPExProvider.PREF_CATEGORY_1_NAME)
-                    remove(KKPExProvider.PREF_CATEGORY_2)
-                    remove(KKPExProvider.PREF_CATEGORY_2_NAME)
-                    remove(KKPExProvider.PREF_CATEGORY_3)
-                    remove(KKPExProvider.PREF_CATEGORY_3_NAME)
-                    remove(KKPExProvider.PREF_CATEGORY_4)
-                    remove(KKPExProvider.PREF_CATEGORY_4_NAME)
-                    remove(KKPExProvider.PREF_CATEGORY_5)
-                    remove(KKPExProvider.PREF_CATEGORY_5_NAME)
-                    remove(KKPExProvider.PREF_CATEGORY_6)
-                    remove(KKPExProvider.PREF_CATEGORY_6_NAME)
-                    apply()
-                }
-                domainEdit.setText(KKPExProvider().mainUrl)
-                val categoryNames = listOf("Mới Cập Nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
-                val categoryDefaultPaths = listOf("danh-sach/phim-moi-cap-nhat-v3", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
-                for (i in 0..5) {
-                    categoryNameEdits.getOrNull(i)?.setText(categoryNames[i])
-                    categoryEdits.getOrNull(i)?.setText(categoryDefaultPaths[i])
-                }
-                showToast("Đã đặt lại thành mặc định")
-                AlertDialog.Builder(ctx)
-                    .setTitle("Đặt Lại & Khởi Động Lại")
-                    .setMessage("Đã đặt lại hoàn toàn. Khởi động lại ứng dụng để áp dụng?")
-                    .setPositiveButton("Có") { _, _ ->
-                        dismiss()
-                        restartApp()
-                    }
-                    .setNegativeButton("Không") { _, _ -> dismiss() }
-                    .show()
+        // Nút Reset
+        val resetPref = Preference(context).apply {
+            title = "🔄 Đặt lại mặc định"
+            summary = "Xóa toàn bộ tùy chỉnh về ban đầu"
+            setOnPreferenceClickListener {
+                sharedPref.edit().clear().apply()
+                showToast("Đã xóa toàn bộ cài đặt. Vui lòng khởi động lại.")
+                restartApp()
+                true
             }
         }
+        actionCat.addPreference(resetPref)
 
-        // Close button
-        val closeBtn = Button(ctx).apply {
-            text = "Đóng"
-            setPadding(16, 8, 16, 8)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = 8
-            }
-            setOnClickListener { dismiss() }
-        }
-
-        layout.addView(domainLabel)
-        layout.addView(domainEdit)
-        layout.addView(categoryTitleLabel)
-        layout.addView(categoryDescLabel)
-        layout.addView(saveBtn)
-        layout.addView(resetBtn)
-        layout.addView(closeBtn)
-
-        scrollView.addView(layout)
-        return scrollView
+        preferenceScreen = screen
     }
 
     private fun restartApp() {
@@ -253,7 +129,6 @@ class SettingsFragment(
         val packageManager = context.packageManager
         val intent = packageManager.getLaunchIntentForPackage(context.packageName)
         val componentName = intent?.component
-
         if (componentName != null) {
             val restartIntent = Intent.makeRestartActivityTask(componentName)
             context.startActivity(restartIntent)
