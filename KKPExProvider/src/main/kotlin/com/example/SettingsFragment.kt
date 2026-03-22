@@ -63,7 +63,7 @@ class SettingsFragment(
 
         val categoryEdits = mutableListOf<EditText>()
         val categoryNameEdits = mutableListOf<EditText>()
-        val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+        val categoryNames = listOf("Mới cập nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
         for (i in 1..6) {
             val categoryLabel = TextView(ctx).apply {
                 text = "Danh sách $i:"
@@ -91,9 +91,10 @@ class SettingsFragment(
             }
 
             val defaultValue = when (i) {
-                1 -> "v1/api/quoc-gia/trung-quoc"
-                2 -> "v1/api/quoc-gia/han-quoc"
-                3 -> "v1/api/danh-sach/hoat-hinh"
+                1 -> "danh-sach/phim-moi-cap-nhat-v3"
+                2 -> "v1/api/quoc-gia/trung-quoc"
+                3 -> "v1/api/quoc-gia/han-quoc"
+                4 -> "v1/api/danh-sach/hoat-hinh"
                 else -> ""
             }
 
@@ -206,8 +207,8 @@ class SettingsFragment(
                     apply()
                 }
                 domainEdit.setText(KKPExProvider().mainUrl)
-                val categoryNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
-                val categoryDefaultPaths = listOf("v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "", "")
+                val categoryNames = listOf("Mới Cập Nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+                val categoryDefaultPaths = listOf("danh-sach/phim-moi-cap-nhat-v3", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
                 for (i in 0..5) {
                     categoryNameEdits.getOrNull(i)?.setText(categoryNames[i])
                     categoryEdits.getOrNull(i)?.setText(categoryDefaultPaths[i])
