@@ -52,10 +52,10 @@ class OPExProvider : MainAPI() {
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val categories = mutableListOf<Pair<String, String>>()
-        val defaultPaths = listOf("v1/api/danh-sach/phim-thuyet-minh?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-long-tieng?sort_field=year&sort_type=desc", "v1/api/danh-sach/phim-le?sort_field=year&sort_type=desc", "v1/api/danh-sach/hoat-hinh?sort_field=year&sort_type=desc", "", "")
-        val defaultNames = listOf("Phim Thuyết Minh", "Phim Lồng Tiếng", "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+        val defaultPaths = listOf("v1/api/danh-sach/phim-moi-cap-nhat", "v1/api/danh-sach/phim-thuyet-minh", "v1/api/danh-sach/phim-long-tieng", "v1/api/danh-sach/phim-le", "v1/api/danh-sach/hoat-hinh", "")
+        val defaultNames = listOf("Mới Cập Nhật", "Phim Thuyết Minh", "Phim Lồng Tiếng", "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 6")
 
-        categories.add(Pair("$mainUrl/v1/api/danh-sach/phim-moi-cap-nhat?page=$page", "Mới Cập Nhật"))
+        //categories.add(Pair("$mainUrl/v1/api/danh-sach/phim-moi-cap-nhat?page=$page", "Mới Cập Nhật"))
         
         for (i in 0..5) {
             val path = prefs.getString(getPreferenceKey(i + 1), defaultPaths[i]).orEmpty()
