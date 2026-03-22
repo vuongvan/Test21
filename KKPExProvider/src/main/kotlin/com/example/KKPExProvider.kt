@@ -105,12 +105,12 @@ class KKPExProvider : MainAPI() {
         val categories = mutableListOf<Pair<String, String>>()
         
         // Fix cứng phim mới cập nhật
-        categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat-v3?page=$page", "Mới cập nhật"))
+        //categories.add(Pair("$mainUrl/danh-sach/phim-moi-cap-nhat-v3?page=$page", "Mới cập nhật"))
         
         val pathKeys = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
         val nameKeys = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
-        val defaultPaths = listOf("v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "", "")
-        val defaultNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
+        val defaultPaths = listOf("danh-sach/phim-moi-cap-nhat-v3", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
+        val defaultNames = listOf("Mới Cập Nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
         
         for (i in 0 until 6) {
             val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
