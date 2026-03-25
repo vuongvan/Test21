@@ -137,7 +137,7 @@ class OPExProvider : MainAPI() {
         
         val tmdbDetails = tmdbExtra
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
-                    ?: OPExUtils.fixImgUrl(movie.thumb_url, cdn)
+                    ?: "$cdn/uploads/movies/${movie.thumb_url}"
 
     // 3. Ưu tiên Backdrop từ TMDB, fallback về OPhim (thường là thumb_url)
          // --- LOGIC MỚI: Lấy ngẫu nhiên backdrop ---
@@ -149,8 +149,8 @@ class OPExProvider : MainAPI() {
         val finalBackdropUrl = if (!tmdbBackdrops.isNullOrEmpty()) {
             tmdbBackdrops.random() // Hàm random() của Kotlin sẽ chọn ngẫu nhiên 1 phần tử
         } else {
-            tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                ?: OPExUtils.fixImgUrl(movie.poster_url, cdn)
+            //tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                "$cdn/uploads/movies/${movie.poster_url}"
         }
         // ------------------------------------------
         val metaTags = mutableListOf<String>()
@@ -174,16 +174,9 @@ class OPExProvider : MainAPI() {
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
-        val plotClean = (movie.content ?: tmdbExtra?.overview ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
+        val plotClean = (tmdbExtra?.overview ?: movie.content ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
-        return if (!isSeries) {
-            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
-                this.posterUrl = posterUrl; 
-                this.backgroundPosterUrl = finalBackdropUrl;
-                this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
-                if (finalRating > 0) this.score = Score.from10(finalRating)
-            }
-        } else {
+        return if (isSeries) {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl; 
                 this.backgroundPosterUrl = finalBackdropUrl;
@@ -193,6 +186,15 @@ class OPExProvider : MainAPI() {
                 this.showStatus = if (rawStatus.contains("ongoing", true)) 
                     ShowStatus.Ongoing else ShowStatus.Completed
             }
+            
+        } else {
+            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+                this.posterUrl = posterUrl; 
+                this.backgroundPosterUrl = finalBackdropUrl;
+                this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
+            }
+            
         }
     }
         
