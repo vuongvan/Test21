@@ -155,8 +155,21 @@ class OPExProvider : MainAPI() {
         // ------------------------------------------
         val metaTags = mutableListOf<String>()
         val rawStatus = movie.status ?: ""
-        
+       
         if (isSeries) {
+        val epCurrent = movie.episode_current ?: ""
+    val epTotal = movie.episode_total ?: ""
+
+    if (rawStatus.contains("ongoing", true)) {
+        // Nếu ĐANG CHIẾU: Hiển thị dạng 10/12 Tập
+        metaTags.add("$epCurrent/$epTotal")
+    } else {
+        // Các trường hợp còn lại (Hoàn thành, Trailer...): Chỉ hiện epCurrent
+        metaTags.add(epCurrent)
+    }
+        }
+        
+        /*if (isSeries) {
             val epCurrent = movie.episode_current ?: ""
             val epTotal = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
             if (epCurrent.isNotEmpty()) {
@@ -164,6 +177,7 @@ class OPExProvider : MainAPI() {
                 metaTags.add(if (epTotal.isNotEmpty() && !cleanCurrent.contains("/")) "$cleanCurrent/$epTotal Tập" else epCurrent)
             }
         }
+        */
         movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
