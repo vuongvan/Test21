@@ -137,7 +137,7 @@ class OPExProvider : MainAPI() {
         
         val tmdbDetails = tmdbExtra
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
-                    ?: OPExUtils.fixImgUrl(movie.poster_url, cdn)
+                    ?: OPExUtils.fixImgUrl(movie.thumb_url, cdn)
 
     // 3. Ưu tiên Backdrop từ TMDB, fallback về OPhim (thường là thumb_url)
          // --- LOGIC MỚI: Lấy ngẫu nhiên backdrop ---
@@ -150,7 +150,7 @@ class OPExProvider : MainAPI() {
             tmdbBackdrops.random() // Hàm random() của Kotlin sẽ chọn ngẫu nhiên 1 phần tử
         } else {
             tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                ?: OPExUtils.fixImgUrl(movie.thumb_url, cdn)
+                ?: OPExUtils.fixImgUrl(movie.poster_url, cdn)
         }
         // ------------------------------------------
         val metaTags = mutableListOf<String>()
