@@ -91,7 +91,7 @@ class OPExProvider : MainAPI() {
                 
                     this.posterUrl = "$cdn/uploads/movies/${it.thumb_url}"
                     if (scoreVal > 0) this.score = Score.from10(scoreVal)
-                    this.quality = if (it.quality?.uppercase() == "CAM") SearchQuality.Cam else SearchQuality.HD
+                    //this.quality = if (it.quality?.uppercase() == "CAM") SearchQuality.Cam else SearchQuality.HD
                 }
             } ?: emptyList()
         } catch (e: Exception) { emptyList() }
