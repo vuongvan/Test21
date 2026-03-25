@@ -169,15 +169,7 @@ class OPExProvider : MainAPI() {
     }
         }
         
-        /*if (isSeries) {
-            val epCurrent = movie.episode_current ?: ""
-            val epTotal = movie.episode_total?.replace("Tập", "", true)?.trim() ?: ""
-            if (epCurrent.isNotEmpty()) {
-                val cleanCurrent = epCurrent.replace("Hoàn tất", "").replace("(", "").replace(")", "").trim()
-                metaTags.add(if (epTotal.isNotEmpty() && !cleanCurrent.contains("/")) "$cleanCurrent/$epTotal Tập" else epCurrent)
-            }
-        }
-        */
+        
         movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
@@ -198,8 +190,8 @@ class OPExProvider : MainAPI() {
                 
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                this.showStatus = if (rawStatus.contains("complete", true) || rawStatus.contains("hoàn thành", true)) 
-                    ShowStatus.Completed else ShowStatus.Ongoing
+                this.showStatus = if (rawStatus.contains("ongoing", true)) 
+                    ShowStatus.Ongoing else ShowStatus.Completed
             }
         }
     }
