@@ -87,7 +87,9 @@ class OPExProvider : MainAPI() {
             val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
             val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
                     addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
-                    this.posterUrl = OPExUtils.fixImgUrl(it.thumb_url ?: it.poster_url, cdn)
+                    //this.posterUrl = OPExUtils.fixImgUrl(it.thumb_url ?: it.poster_url, cdn)
+                
+                    this.posterUrl = "$cdn/uploads/movies/${it.thumb_url}"
                     if (scoreVal > 0) this.score = Score.from10(scoreVal)
                     this.quality = if (it.quality?.uppercase() == "CAM") SearchQuality.Cam else SearchQuality.HD
                 }
