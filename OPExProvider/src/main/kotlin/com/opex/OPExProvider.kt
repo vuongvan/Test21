@@ -120,9 +120,7 @@ class OPExProvider : MainAPI() {
         //val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
         
         // Chỗ này nhớ sửa lại: Nếu tìm được tmdbId nhưng không có tmdbSeasonNum (do web thiếu), mặc định cho season = 1
-        val finalSeasonNum = tmdbSeasonNum ?: 1 
-
-         // ... (Đoạn mã map tập phim bên dưới giữ nguyên)
+        / ... (Đoạn mã map tập phim bên dưới giữ nguyên)
             
         val seasonNumber = movie.tmdb?.season ?: 1
         // Đã sửa: Truyền 'this' vào hàm để nó hiểu ngữ cảnh của MainAPI
@@ -131,11 +129,11 @@ class OPExProvider : MainAPI() {
          
         val actorsList = tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) }
         
-        val tmdbExtra = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
+        val tmdbDetails = tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) }
 
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         
-        val tmdbDetails = tmdbExtra
+        
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
                     ?: "$cdn/uploads/movies/${movie.thumb_url}"
 
@@ -174,7 +172,7 @@ class OPExProvider : MainAPI() {
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
-        val plotClean = (tmdbExtra?.overview ?: movie.content ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
+        val plotClean = (movie.content ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
         return if (isSeries) {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
