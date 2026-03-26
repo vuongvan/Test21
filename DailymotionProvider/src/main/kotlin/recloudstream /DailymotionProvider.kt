@@ -9,26 +9,26 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 class DailymotionProvider : MainAPI() {
 
     // --- DATA CLASSES ---
-    data class VideoSearchResponse(@JsonProperty("list") val list: List<VideoItem>)
+    data class VideoSearchResponse(@param:JsonProperty("list") val list: List<VideoItem>)
     data class VideoItem(
-    @JsonProperty("id") val id: String,
-    @JsonProperty("title") val title: String,
-    @JsonProperty("thumbnail_360_url") val thumbnail360Url: String? = null,
-    @JsonProperty("duration") val duration: Int? = null // Thời lượng tính bằng giây
+    @param:JsonProperty("id") val id: String,
+    @param:JsonProperty("title") val title: String,
+    @param:JsonProperty("thumbnail_360_url") val thumbnail360Url: String? = null,
+    @param:JsonProperty("duration") val duration: Int? = null // Thời lượng tính bằng giây
 )
 
 
-    data class PlaylistSearchResponse(@JsonProperty("list") val list: List<PlaylistItem>)
+    data class PlaylistSearchResponse(@param:JsonProperty("list") val list: List<PlaylistItem>)
     data class PlaylistItem(
-        @JsonProperty("id") val id: String,
-        @JsonProperty("name") val name: String,
-        @JsonProperty("thumbnail_360_url") val thumbnail360Url: String? = null
+        @param:JsonProperty("id") val id: String,
+        @param:JsonProperty("name") val name: String,
+        @param:JsonProperty("thumbnail_360_url") val thumbnail360Url: String? = null
     )
 
-    data class FollowingResponse(@JsonProperty("list") val list: List<UserItem>)
+    data class FollowingResponse(@param:JsonProperty("list") val list: List<UserItem>)
     data class UserItem(
-        @JsonProperty("screenname") val screenname: String,
-        @JsonProperty("id") val id: String
+        @param:JsonProperty("screenname") val screenname: String,
+        @param:JsonProperty("id") val id: String
     )
 
     override var mainUrl = "https://api.dailymotion.com"
