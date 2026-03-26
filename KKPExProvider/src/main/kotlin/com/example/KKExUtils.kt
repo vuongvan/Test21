@@ -147,9 +147,16 @@ data class KKMovie(
 )
 
 // Định nghĩa 2 class còn thiếu này:
-data class KKCategory(@param:JsonProperty("name") val name: String? = null)
-data class KKCountry(@param:JsonProperty("name") val name: String? = null)
 
+data class KKCountry(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("slug") val slug: String? = null
+)
+
+data class KKCategory(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("slug") val slug: String? = null
+)
 
 data class KKServer(
     @param:JsonProperty("server_name") val server_name: String? = null, 
