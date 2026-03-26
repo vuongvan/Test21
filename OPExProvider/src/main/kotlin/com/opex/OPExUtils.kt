@@ -173,6 +173,7 @@ data class OPItem(
     @param:JsonProperty("quality") val quality: String? = null, 
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null, 
     @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null, 
+    @param:JsonProperty("country") val country: List<OPCountry>? = null, // Thêm dòng này
     @param:JsonProperty("episode_current") val episode_current: String? = null
 )
 
@@ -210,6 +211,10 @@ data class OPItemDetail(
     @param:JsonProperty("poster_url") val poster_url: String? = null, 
     @param:JsonProperty("thumb_url") val thumb_url: String? = null, 
     @param:JsonProperty("episodes") val episodes: List<OPServer>? = null
+)
+data class OPCountry(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("slug") val slug: String? = null
 )
 
 data class OPCat(@param:JsonProperty("name") val name: String? = null)
