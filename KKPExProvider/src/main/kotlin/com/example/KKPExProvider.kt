@@ -300,13 +300,13 @@ override suspend fun search(query: String): List<SearchResponse> {
         // ==========================================
         
         //Score
-        val tmdbExtra = tmdbId?.let { KKExUtils.fetchTmdbDetails(tmdbType, it) }
-        val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
+        val tmdbDetails = tmdbId?.let { KKExUtils.fetchTmdbDetails(tmdbType, it) }
+        val finalRating = tmdbDetails?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         //poster tmdb
-        val tmdbDetails = tmdbExtra
+        
     // 2. Ưu tiên Poster từ TMDB, fallback về OPhim
        val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } 
-                    ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
+                    ?: movie.poster_url
         // --- LOGIC MỚI: Lấy ngẫu nhiên backdrop ---
         val tmdbBackdrops = tmdbId?.let { KKExUtils.fetchTmdbBackdrops(tmdbType, it) }
         
@@ -317,7 +317,7 @@ override suspend fun search(query: String): List<SearchResponse> {
             tmdbBackdrops.random() // Hàm random() của Kotlin sẽ chọn ngẫu nhiên 1 phần tử
         } else {
             tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                ?: KKExUtils.fixPosterUrl(movie.thumb_url ?: movie.poster_url)
+                ?: movie.thumb_url
         }
         // ------------------------------------------
       //---------
