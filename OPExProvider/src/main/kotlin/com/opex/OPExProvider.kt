@@ -171,7 +171,7 @@ class OPExProvider : MainAPI() {
         movie.lang?.let { l -> l.split("+").forEach { if (!it.contains("Vietsub", true)) metaTags.add(it.trim()) } }
         movie.category?.forEach { it.name?.let { n -> metaTags.add(n) } }
 
-        val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
+        val finalRating = tmdbDetails?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val plotClean = (movie.content ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
         // --- LOGIC LẤY DANH SÁCH ĐỀ XUẤT (RECOMMENDATIONS) ---
