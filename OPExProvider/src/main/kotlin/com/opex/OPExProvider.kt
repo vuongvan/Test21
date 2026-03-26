@@ -183,41 +183,14 @@ val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
 val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
 
 // 3. Khởi tạo danh sách đề xuất rỗng
-var recommendationsList = emptyList<SearchResponse>()
-
-// 4. Gọi API nếu có quốc gia
-if (countrySlug.isNotEmpty()) {
-    // Lưu ý: Mình bỏ chữ 'n' dư thừa đi, nếu link gốc bắt buộc có thì bạn thêm lại "n$countrySlug" nhé
-    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=15&category=$categorySlugs&sort_field=year&sort_type=desc"
+//var recommendationsList = emptyList<SearchResponse>()
+val recommendationsList = if (countrySlug.isNotEmpty()) {
+    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=15&category=$categorySlugs,phieu-luu,khoa-hoc&sort_field=year&sort_type=desc"
     
-    try {
-        val recResponse = app.get(recUrl, timeout = 15).text
-        val recData = parseJson<OPRootResponse>(recResponse) // Tùy thuộc data class bạn dùng, có thể là OPRootResponse hoặc OPListResponse
-        val recItems = recData.data?.items ?: emptyList()
-        val recCdn = recData.data?.APP_DOMAIN_CDN_IMAGE ?: cdn // Lấy cdn mới, nếu null thì dùng cdn của phim hiện tại
-        
-        // Chuyển đổi dữ liệu API thành danh sách SearchResponse
-        recommendationsList = recItems.filter { it.slug != movie.slug } // Lọc bỏ chính bộ phim đang xem để tránh trùng lặp
-            .mapNotNull { item ->
-                val title = item.name ?: return@mapNotNull null
-                val recSlug = item.slug ?: return@mapNotNull null
-                
-                // Tận dụng lại logic lấy ảnh an toàn
-                val path = item.thumb_url ?: item.poster_url ?: ""
-                val poster = when {
-                    path.startsWith("http") -> path
-                    path.startsWith("uploads/") -> "$recCdn/$path"
-                    else -> "$recCdn/uploads/movies/$path"
-                }
-                
-                newTvSeriesSearchResponse(title, "$mainUrl/v1/api/phim/$recSlug", TvType.TvSeries) {
-                    this.posterUrl = poster
-                }
-            }
-    } catch (e: Exception) {
-        // Bỏ qua lỗi nếu API gọi xịt (ví dụ: timeout), không làm ảnh hưởng đến load() chính
-        e.printStackTrace()
-    }
+    // Gọi hàm có sẵn và lọc bỏ phim hiện tại để không tự đề xuất chính nó
+    getListFromUrl(recUrl).filter { it.name != movieName } 
+} else {
+    emptyList()
 }
 // ----------------------------------------------------
 
