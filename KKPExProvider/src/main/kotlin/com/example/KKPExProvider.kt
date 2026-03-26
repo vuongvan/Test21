@@ -62,7 +62,7 @@ class KKPExProvider : MainAPI() {
         
         // Đảm bảo dùng KKExUtils để fix URL ảnh nếu cần
         //val poster = item.thumb_url
-        val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
+        val poster = KKExUtils.fixPosterUrl(item.poster_url)
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = poster
             
