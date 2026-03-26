@@ -321,6 +321,24 @@ override suspend fun search(query: String): List<SearchResponse> {
         }
         // ------------------------------------------
       //---------
+      // 1. Lấy slug của quốc gia đầu tiên (Ví dụ: "trung-quoc")
+val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
+
+// 2. Lấy danh sách slug của tất cả thể loại, ghép lại bằng dấu phẩy (Ví dụ: "hai-huoc,hanh-dong")
+val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
+
+// 3. Khởi tạo danh sách đề xuất rỗng
+//var recommendationsList = emptyList<SearchResponse>()
+val recommendationsList = if (countrySlug.isNotEmpty()) {
+    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=24&category=$categorySlugs&sort_field=year&sort_type=desc"
+    
+    // Gọi hàm có sẵn và lọc bỏ phim hiện tại để không tự đề xuất chính nó
+    getListFromUrl(recUrl)
+} else {
+    emptyList()
+}
+// ----------------------------------------------------
+
                 return if (isSeries) {  
             newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
                 this.posterUrl = posterUrl
@@ -331,6 +349,8 @@ override suspend fun search(query: String): List<SearchResponse> {
                 this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true)) ShowStatus.Completed else ShowStatus.Ongoing
                 this.score = finalRating.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
+                this.recommendations = recommendationsList
+            
             }
         } else {
             // Lấy dữ liệu link từ tập đầu tiên cho phim lẻ
@@ -343,6 +363,7 @@ override suspend fun search(query: String): List<SearchResponse> {
                 this.tags = movieTags
                 this.score = finalRating.let { if (it > 0) Score.from10(it) else null }
                 this.actors = finalActors
+                this.recommendations = recommendationsList
             }
        }
                 
