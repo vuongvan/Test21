@@ -58,7 +58,7 @@ class KKPExProvider : MainAPI() {
     return items.mapNotNull { item ->
         val title = item.name ?: return@mapNotNull null
         val slug = item.slug ?: return@mapNotNull null
-        val href = "$mainUrl/v1/api/phim/$slug"
+        val href = "$mainUrl/phim/$slug"
         
         // Đảm bảo dùng KKExUtils để fix URL ảnh nếu cần
         //val poster = item.thumb_url
