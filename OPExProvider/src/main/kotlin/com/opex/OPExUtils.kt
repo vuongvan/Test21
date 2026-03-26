@@ -217,7 +217,10 @@ data class OPCountry(
     @param:JsonProperty("slug") val slug: String? = null
 )
 
-data class OPCat(@param:JsonProperty("name") val name: String? = null)
+data class OPCat(
+    @param:JsonProperty("name") val name: String? = null,
+    @param:JsonProperty("slug") val slug: String? = null
+)
 data class OPServer(@param:JsonProperty("server_name") val server_name: String? = null, @param:JsonProperty("server_data") val server_data: List<OPEpisode>? = null)
 data class OPEpisode(@param:JsonProperty("name") val name: String? = null, @param:JsonProperty("link_m3u8") val link_m3u8: String? = null)
 
