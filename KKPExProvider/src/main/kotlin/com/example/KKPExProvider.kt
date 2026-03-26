@@ -58,13 +58,13 @@ class KKPExProvider : MainAPI() {
     return items.mapNotNull { item ->
         val title = item.name ?: return@mapNotNull null
         val slug = item.slug ?: return@mapNotNull null
-        val href = "$mainUrl/phim/$slug"
+        val href = "$mainUrl/v1/api/phim/$slug"
         
         // Đảm bảo dùng KKExUtils để fix URL ảnh nếu cần
-        val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
+        //val poster = item.thumb_url
 
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
-            this.posterUrl = poster
+            this.posterUrl = item.poster_url
             
             // 2. SỬA LỖI 3232: Chỉ lấy số tập hiện tại trước dấu "/"
             val epText = item.episode_current ?: ""
@@ -82,10 +82,10 @@ class KKPExProvider : MainAPI() {
           
 
             // 4. XỬ LÝ CHẤT LƯỢNG
-            this.quality = when (item.quality?.uppercase()) {
+            /*this.quality = when (item.quality?.uppercase()) {
                 "CAM", "HDCAM" -> SearchQuality.Cam
                 else -> SearchQuality.HD
-            }
+            }*/
 
             // 5. XỬ LÝ ĐIỂM SỐ (Lấy từ tmdb.vote_average)
             val rating = item.tmdb?.vote_average ?: 0.0
