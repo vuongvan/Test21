@@ -62,9 +62,9 @@ class KKPExProvider : MainAPI() {
         
         // Đảm bảo dùng KKExUtils để fix URL ảnh nếu cần
         //val poster = item.thumb_url
-
+        val poster = KKExUtils.fixPosterUrl(item.poster_url ?: item.thumb_url)
         newAnimeSearchResponse(title, href, TvType.TvSeries) {
-            this.posterUrl = item.poster_url
+            this.posterUrl = poster
             
             // 2. SỬA LỖI 3232: Chỉ lấy số tập hiện tại trước dấu "/"
             val epText = item.episode_current ?: ""
