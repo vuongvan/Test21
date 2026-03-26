@@ -333,7 +333,7 @@ val recommendationsList = if (countrySlug.isNotEmpty()) {
     val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=17&category=$categorySlugs&sort_field=year&sort_type=desc"
     
     // Gọi hàm có sẵn và lọc bỏ phim hiện tại để không tự đề xuất chính nó
-    getListFromUrl(recUrl)filter { it.name != movieName }
+    getListFromUrl(recUrl)filter { it.name != movie.name }
 } else {
     emptyList()
 }
