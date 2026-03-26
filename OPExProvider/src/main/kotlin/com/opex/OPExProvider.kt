@@ -185,7 +185,7 @@ val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?:
 // 3. Khởi tạo danh sách đề xuất rỗng
 //var recommendationsList = emptyList<SearchResponse>()
 val recommendationsList = if (countrySlug.isNotEmpty()) {
-    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=15&category=$categorySlugs,phieu-luu,khoa-hoc&sort_field=year&sort_type=desc"
+    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=15&category=$categorySlugs&sort_field=year&sort_type=desc"
     
     // Gọi hàm có sẵn và lọc bỏ phim hiện tại để không tự đề xuất chính nó
     getListFromUrl(recUrl).filter { it.name != movieName } 
