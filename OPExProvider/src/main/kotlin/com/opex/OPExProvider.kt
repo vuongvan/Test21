@@ -174,11 +174,59 @@ class OPExProvider : MainAPI() {
         val finalRating = tmdbExtra?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val plotClean = (movie.content ?: "").replace(Regex("<.*?>"), "").replace("\\n", "\n")
 
+        // --- LOGIC LẤY DANH SÁCH ĐỀ XUẤT (RECOMMENDATIONS) ---
+
+// 1. Lấy slug của quốc gia đầu tiên (Ví dụ: "trung-quoc")
+val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
+
+// 2. Lấy danh sách slug của tất cả thể loại, ghép lại bằng dấu phẩy (Ví dụ: "hai-huoc,hanh-dong")
+val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
+
+// 3. Khởi tạo danh sách đề xuất rỗng
+var recommendationsList = emptyList<SearchResponse>()
+
+// 4. Gọi API nếu có quốc gia
+if (countrySlug.isNotEmpty()) {
+    // Lưu ý: Mình bỏ chữ 'n' dư thừa đi, nếu link gốc bắt buộc có thì bạn thêm lại "n$countrySlug" nhé
+    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=15&category=$categorySlugs&sort_field=year&sort_type=desc"
+    
+    try {
+        val recResponse = app.get(recUrl, timeout = 15).text
+        val recData = parseJson<OPRootResponse>(recResponse) // Tùy thuộc data class bạn dùng, có thể là OPRootResponse hoặc OPListResponse
+        val recItems = recData.data?.items ?: emptyList()
+        val recCdn = recData.data?.APP_DOMAIN_CDN_IMAGE ?: cdn // Lấy cdn mới, nếu null thì dùng cdn của phim hiện tại
+        
+        // Chuyển đổi dữ liệu API thành danh sách SearchResponse
+        recommendationsList = recItems.filter { it.slug != movie.slug } // Lọc bỏ chính bộ phim đang xem để tránh trùng lặp
+            .mapNotNull { item ->
+                val title = item.name ?: return@mapNotNull null
+                val recSlug = item.slug ?: return@mapNotNull null
+                
+                // Tận dụng lại logic lấy ảnh an toàn
+                val path = item.thumb_url ?: item.poster_url ?: ""
+                val poster = when {
+                    path.startsWith("http") -> path
+                    path.startsWith("uploads/") -> "$recCdn/$path"
+                    else -> "$recCdn/uploads/movies/$path"
+                }
+                
+                newTvSeriesSearchResponse(title, "$mainUrl/v1/api/phim/$recSlug", TvType.TvSeries) {
+                    this.posterUrl = poster
+                }
+            }
+    } catch (e: Exception) {
+        // Bỏ qua lỗi nếu API gọi xịt (ví dụ: timeout), không làm ảnh hưởng đến load() chính
+        e.printStackTrace()
+    }
+}
+// ----------------------------------------------------
+
+
         return if (isSeries) {
             newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl; 
                 this.backgroundPosterUrl = finalBackdropUrl;
-                
+                this.recommendations = recommendationsList
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = if (rawStatus.contains("ongoing", true)) 
@@ -189,6 +237,7 @@ class OPExProvider : MainAPI() {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl; 
                 this.backgroundPosterUrl = finalBackdropUrl;
+                this.recommendations = recommendationsList
                 this.plot = plotClean; this.year = movie.year; this.tags = metaTags; this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
             }
