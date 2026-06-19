@@ -5,14 +5,10 @@ import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-import java.util.Locale
 import android.content.Context
 
 object KKExUtils {
@@ -75,11 +71,9 @@ object KKExUtils {
         } catch (e: Exception) { emptyList() }
     }
 
-    // =====================================================================
-    // [TỐI ƯU] Gộp 3 API call (cast + details + backdrops) chạy SONG SONG
-    // Trước: ~400ms + ~400ms + ~400ms = ~1200ms tuần tự
-    // Sau:   max(400ms) = ~400ms  →  tiết kiệm ~800ms mỗi lần load phim
-    // =====================================================================
+    // =========================================================================
+    // Bundle cho PHIM LẺ: cast + details + backdrops chạy song song (3 calls)
+    // =========================================================================
     data class TmdbBundle(
         val cast: List<ActorData>?,
         val details: TmdbDetailResponse?,
@@ -97,9 +91,9 @@ object KKExUtils {
         )
     }
 
-    // =====================================================================
-    // [TỐI ƯU] Với phim bộ: gộp thêm fetchTmdbSeason vào bundle (4 song song)
-    // =====================================================================
+    // =========================================================================
+    // Bundle cho PHIM BỘ: cast + details + backdrops + season chạy song song (4 calls)
+    // =========================================================================
     data class TmdbSeriesBundle(
         val cast: List<ActorData>?,
         val details: TmdbDetailResponse?,
@@ -201,10 +195,6 @@ data class KKTMDB(
     @param:JsonProperty("vote_average") val vote_average: Double? = null
 )
 
-data class TmdbResponse(
-    @param:JsonProperty("credits") val credits: TmdbCredits? = null
-)
-
 data class TmdbCredits(
     @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
 )
@@ -217,14 +207,6 @@ data class TmdbCast(
 
 data class TmdbCreditsResponse(
     val cast: List<TmdbCast>? = null
-)
-
-data class TmdbTvInfo(
-    @param:JsonProperty("vote_average") val voteAverage: Double? = null
-)
-
-data class TmdbMovieInfo(
-    @param:JsonProperty("vote_average") val voteAverage: Double? = null
 )
 
 data class TmdbDetailResponse(
