@@ -43,13 +43,11 @@ class SettingsFragment(
         val domainEdit = EditText(ctx).apply {
             hint = "Domain (e.g. https://example.com)"
             inputType = InputType.TYPE_TEXT_VARIATION_URI
-            // [TỐI ƯU] Dùng KKPExProvider.DEFAULT_URL thay vì KKPExProvider().mainUrl
-            // để tránh khởi tạo một object không cần thiết chỉ để đọc hằng số.
+            // [TỐI ƯU] Đọc hằng số từ companion object, không khởi tạo KKPExProvider() thừa
             setText(sharedPref.getString(KKPExProvider.PREF_DOMAIN, KKPExProvider.DEFAULT_URL))
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        // Category settings
         val categoryTitleLabel = TextView(ctx).apply {
             text = "⚙️ Cài Đặt Danh Sách Phim"
             textSize = 16f
@@ -63,24 +61,18 @@ class SettingsFragment(
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        val categoryEdits = mutableListOf<EditText>()
+        // [TỐI ƯU] Dùng array/list thay vì when(i) lặp lại → dễ bảo trì, ít code hơn
+        val pathKeys     = listOf(KKPExProvider.PREF_CATEGORY_1, KKPExProvider.PREF_CATEGORY_2, KKPExProvider.PREF_CATEGORY_3, KKPExProvider.PREF_CATEGORY_4, KKPExProvider.PREF_CATEGORY_5, KKPExProvider.PREF_CATEGORY_6)
+        val nameKeys     = listOf(KKPExProvider.PREF_CATEGORY_1_NAME, KKPExProvider.PREF_CATEGORY_2_NAME, KKPExProvider.PREF_CATEGORY_3_NAME, KKPExProvider.PREF_CATEGORY_4_NAME, KKPExProvider.PREF_CATEGORY_5_NAME, KKPExProvider.PREF_CATEGORY_6_NAME)
+        val defaultPaths = listOf("danh-sach/phim-moi-cap-nhat-v3", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
+        val defaultNames = listOf("Mới cập nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
+
+        val categoryEdits     = mutableListOf<EditText>()
         val categoryNameEdits = mutableListOf<EditText>()
-        val categoryDisplayNames = listOf("Danh sách 1", "Danh sách 2", "Danh sách 3", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
-        val pathKeys = listOf(
-            KKPExProvider.PREF_CATEGORY_1, KKPExProvider.PREF_CATEGORY_2,
-            KKPExProvider.PREF_CATEGORY_3, KKPExProvider.PREF_CATEGORY_4,
-            KKPExProvider.PREF_CATEGORY_5, KKPExProvider.PREF_CATEGORY_6
-        )
-        val nameKeys = listOf(
-            KKPExProvider.PREF_CATEGORY_1_NAME, KKPExProvider.PREF_CATEGORY_2_NAME,
-            KKPExProvider.PREF_CATEGORY_3_NAME, KKPExProvider.PREF_CATEGORY_4_NAME,
-            KKPExProvider.PREF_CATEGORY_5_NAME, KKPExProvider.PREF_CATEGORY_6_NAME
-        )
-        val defaultPaths = listOf("quoc-gia/trung-quoc", "quoc-gia/han-quoc", "danh-sach/hoat-hinh", "", "", "")
 
         for (i in 0 until 6) {
             val categoryLabel = TextView(ctx).apply {
-                text = categoryDisplayNames[i] + ":"
+                text = "Danh sách ${i + 1}:"
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setPadding(0, 12, 0, 8)
@@ -95,7 +87,7 @@ class SettingsFragment(
 
             val categoryNameEdit = EditText(ctx).apply {
                 hint = "Nhập tên tuỳ chỉnh (vd: Phim Trung Quốc)"
-                setText(sharedPref.getString(nameKeys[i], categoryDisplayNames[i]))
+                setText(sharedPref.getString(nameKeys[i], defaultNames[i]))
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setPadding(10, 8, 10, 8)
             }
@@ -132,12 +124,12 @@ class SettingsFragment(
             }
             setOnClickListener {
                 val domain = domainEdit.text.toString().trim()
-
                 if (domain.isEmpty()) {
                     showToast("Domain không thể trống")
                     return@setOnClickListener
                 }
 
+                // [TỐI ƯU] Lưu tất cả trong 1 vòng for thay vì 12 dòng putString lặp lại
                 sharedPref.edit().apply {
                     putString(KKPExProvider.PREF_DOMAIN, domain)
                     for (i in 0 until 6) {
@@ -165,15 +157,17 @@ class SettingsFragment(
                 topMargin = 8
             }
             setOnClickListener {
+                // [TỐI ƯU] Xóa tất cả trong 1 vòng for thay vì 12 dòng remove lặp lại
                 sharedPref.edit().apply {
-                    pathKeys.forEach { remove(it) }
-                    nameKeys.forEach { remove(it) }
+                    for (i in 0 until 6) {
+                        remove(pathKeys[i])
+                        remove(nameKeys[i])
+                    }
                     apply()
                 }
                 domainEdit.setText(KKPExProvider.DEFAULT_URL)
-                val resetNames = listOf("Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 4", "Danh Sách 5", "Danh Sách 6")
                 for (i in 0 until 6) {
-                    categoryNameEdits.getOrNull(i)?.setText(resetNames[i])
+                    categoryNameEdits.getOrNull(i)?.setText(defaultNames[i])
                     categoryEdits.getOrNull(i)?.setText(defaultPaths[i])
                 }
                 showToast("Đã đặt lại thành mặc định")
@@ -213,7 +207,6 @@ class SettingsFragment(
         val packageManager = context.packageManager
         val intent = packageManager.getLaunchIntentForPackage(context.packageName)
         val componentName = intent?.component
-
         if (componentName != null) {
             val restartIntent = Intent.makeRestartActivityTask(componentName)
             context.startActivity(restartIntent)
