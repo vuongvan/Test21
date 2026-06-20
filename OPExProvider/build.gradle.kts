@@ -9,20 +9,13 @@ version = 10
 cloudstream {
     // All of these properties are optional, you can safely remove any of them.
 
-    description = "Watch content from Dailymotion"
-    authors = listOf("Luna712")
-
-    /**
-     * Status int as one of the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta-only
-     */
-    status = 1 // Will be 3 if unspecified
-
-    tvTypes = listOf("Others")
-    iconUrl = "https://www.google.com/s2/favicons?domain=www.dailymotion.com&sz=%size%"
-
+    description = "Movies"
+    authors = listOf("VM", "Gemini")
     
+    status = 1 // Will be 3 if unspecified
+    tvTypes = listOf("Movie")
+    language = "vi"
+
+    // Random CC logo I found
+    iconUrl = "https://upload.wikimedia.org/wikipedia/commons/2/2f/Korduene_Logo.png"
 }
