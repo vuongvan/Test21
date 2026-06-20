@@ -132,20 +132,9 @@ class KKPExProvider : MainAPI() {
                 && totalEpisodes != "1"
         val tmdbType = if (isSeries) "tv" else "movie"
 
-        // Resolve tmdbId
-        var tmdbId = movie.tmdb?.id
-        if (tmdbId.isNullOrEmpty()) {
-            tmdbId = KKExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
-        }
         val finalSeasonNum = movie.tmdb?.season ?: 1
-
-        // =====================================================================
-        // [FIX 1] Recommendations + TMDB bundle chạy THỰC SỰ song song
-        // Trước: bundle xong (~400ms) rồi mới fetch rec (~300ms) = ~700ms
-        // Sau:   cả 2 cùng chạy song song = ~400ms
-        // =====================================================================
-        val countrySlug    = movie.country?.firstOrNull()?.slug ?: ""
-        val categorySlugs  = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
+        val countrySlug   = movie.country?.firstOrNull()?.slug ?: ""
+        val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
 
         val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
         val tmdbActors: List<ActorData>?
@@ -153,20 +142,38 @@ class KKPExProvider : MainAPI() {
         val tmdbBackdrops: List<String>
         val recommendationsList: List<SearchResponse>
 
-        if (!tmdbId.isNullOrEmpty()) {
-            coroutineScope {
-                // Deferred cho recommendations
-                val recDeferred = async {
-                    if (countrySlug.isNotEmpty()) {
-                        val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=16&category=$categorySlugs&sort_field=year&sort_type=desc"
-                        getListFromUrl(recUrl)
-                    } else emptyList()
-                }
+        // =====================================================================
+        // [FIX BUG 1] findTmdbId launch NGAY trong coroutineScope cùng với rec
+        // Trước: findTmdbId (~400ms) blocking → xong mới launch bundle + rec
+        // Sau:   findTmdbId + rec chạy song song ngay từ đầu
+        //
+        // [FIX BUG 2] Không await() bundle giữa chừng trong scope
+        // Trước: bundleDeferred.await() block scope → rec bị chặn dù đã launch
+        // Sau:   await() tất cả cùng lúc ở cuối, không cái nào chặn cái nào
+        // =====================================================================
+        coroutineScope {
+            // Resolve tmdbId: nếu web có sẵn thì wrap luôn vào async để không block
+            val tmdbIdDeferred = async {
+                movie.tmdb?.id?.takeIf { it.isNotEmpty() }
+                    ?: KKExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+            }
 
-                // Deferred cho TMDB bundle (song song với rec)
+            // Rec launch song song ngay, không cần chờ tmdbId
+            val recDeferred = async {
+                if (countrySlug.isNotEmpty()) {
+                    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=16&category=$categorySlugs&sort_field=year&sort_type=desc"
+                    getListFromUrl(recUrl)
+                } else emptyList()
+            }
+
+            // Chờ tmdbId xong rồi mới quyết định launch bundle
+            // (bundle phụ thuộc tmdbId nên không thể tránh, nhưng rec đã chạy song song rồi)
+            val resolvedTmdbId = tmdbIdDeferred.await()
+
+            if (!resolvedTmdbId.isNullOrEmpty()) {
+                // Launch bundle + await() — rec vẫn đang chạy song song trong nền
                 if (isSeries) {
-                    val bundleDeferred = async { KKExUtils.fetchTmdbSeriesBundle(tmdbId, finalSeasonNum) }
-                    val bundle = bundleDeferred.await()
+                    val bundle = KKExUtils.fetchTmdbSeriesBundle(resolvedTmdbId, finalSeasonNum)
                     tmdbActors    = bundle.cast
                     tmdbDetails   = bundle.details
                     tmdbBackdrops = bundle.backdrops
@@ -174,24 +181,19 @@ class KKPExProvider : MainAPI() {
                         ep.episodeNumber?.let { tmdbEpisodesMap[it] = ep }
                     }
                 } else {
-                    val bundleDeferred = async { KKExUtils.fetchTmdbBundle(tmdbType, tmdbId) }
-                    val bundle = bundleDeferred.await()
+                    val bundle = KKExUtils.fetchTmdbBundle(tmdbType, resolvedTmdbId)
                     tmdbActors    = bundle.cast
                     tmdbDetails   = bundle.details
                     tmdbBackdrops = bundle.backdrops
                 }
-
-                recommendationsList = recDeferred.await()
+            } else {
+                tmdbActors    = null
+                tmdbDetails   = null
+                tmdbBackdrops = emptyList()
             }
-        } else {
-            // Nếu không có tmdbId, chỉ cần fetch rec
-            tmdbActors          = null
-            tmdbDetails         = null
-            tmdbBackdrops       = emptyList()
-            recommendationsList = if (countrySlug.isNotEmpty()) {
-                val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=16&category=$categorySlugs&sort_field=year&sort_type=desc"
-                getListFromUrl(recUrl)
-            } else emptyList()
+
+            // Await rec — nếu rec đã xong trong lúc bundle chạy thì return ngay, không chờ thêm
+            recommendationsList = recDeferred.await()
         }
 
         // =====================================================================
@@ -308,4 +310,4 @@ class KKPExProvider : MainAPI() {
         }
         return true
     }
-}
+    
