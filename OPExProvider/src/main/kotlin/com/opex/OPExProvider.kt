@@ -127,29 +127,44 @@ class OPExProvider : MainAPI() {
         val tmdbType = movie.tmdb?.type ?: if (isSeries) "tv" else "movie"
         val seasonNumber = movie.tmdb?.season ?: 1
 
-        // Resolve tmdbId — dùng web trước, fallback tự tìm
-        val tmdbId: String? = movie.tmdb?.id?.takeIf { it.isNotEmpty() }
-            ?: OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+        // Phase 1: build ophim episode map (pure local, không cần network)
+        val ophimEpsMap = buildOphimEpsMap(movie.episodes)
 
-        // Tất cả TMDB calls chạy song song — đây là bottleneck lớn nhất
-        val episodesDeferred   = async { getMergedEpisodes(tmdbId, movie.episodes, isSeries, seasonNumber) }
-        val actorsDeferred     = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
-        val detailsDeferred    = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
-        val backdropsDeferred  = async { tmdbId?.let { OPExUtils.fetchTmdbBackdrops(tmdbType, it) } }
-        val recsDeferred       = async {
+        // Phase 1 (song song): resolve tmdbId + fetch recommendations
+        // — cả 2 không phụ thuộc nhau, chạy ngay lập tức
+        val tmdbIdDeferred = async {
+            movie.tmdb?.id?.takeIf { it.isNotEmpty() }
+                ?: OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+        }
+        val recsDeferred = async {
             val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
             if (countrySlug.isNotEmpty()) {
                 val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
                 val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=20&category=$categorySlugs&sort_field=year&sort_type=desc"
                 getListFromUrl(recUrl).take(16)
-            } else emptyList()
+            } else emptyList<SearchResponse>()
         }
 
-        val episodeList      = episodesDeferred.await()
-        val actorsList       = actorsDeferred.await()
-        val tmdbDetails      = detailsDeferred.await()
-        val tmdbBackdrops    = backdropsDeferred.await()
+        // Chỉ await tmdbId khi cần để launch 4 TMDB calls — recsDeferred vẫn chạy nền
+        val tmdbId = tmdbIdDeferred.await()
+
+        // Phase 2: 4 TMDB calls thực sự song song ngay sau khi có tmdbId
+        val castDeferred      = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
+        val detailsDeferred   = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
+        val backdropsDeferred = async { tmdbId?.let { OPExUtils.fetchTmdbBackdrops(tmdbType, it) } }
+        val seasonDeferred    = async {
+            if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
+        }
+
+        // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
+        val actorsList          = castDeferred.await()
+        val tmdbDetails         = detailsDeferred.await()
+        val tmdbBackdrops       = backdropsDeferred.await()
+        val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
+
+        // Merge ophim map với TMDB season data (pure local, không cần thêm network)
+        val episodeList = mergeEpisodes(ophimEpsMap, tmdbId, tmdbSeason)
 
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
             ?: "$cdn/uploads/movies/${movie.thumb_url}"
@@ -203,37 +218,27 @@ class OPExProvider : MainAPI() {
         }
     }
 
-    // getMergedEpisodes chuyển vào đây, bỏ param api (dùng this trực tiếp)
-    private suspend fun getMergedEpisodes(
-        tmdbId: String?,
-        ophimServers: List<OPServer>?,
-        isSeries: Boolean,
-        seasonNumber: Int = 1
-    ): List<Episode> {
-        // Map<epNum, Pair<epName, links: List<"url|serverName">>>
-        val ophimEpsMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
-
+    // Phase 1 (sync): chỉ parse local data từ ophim, không có network call
+    private fun buildOphimEpsMap(ophimServers: List<OPServer>?): Map<Int, Pair<String, MutableList<String>>> {
+        val map = mutableMapOf<Int, Pair<String, MutableList<String>>>()
         ophimServers?.forEach { server ->
             val sName = server.server_name ?: "Server"
             server.server_data?.forEach { ep ->
                 val epName = ep.name ?: ""
                 val epNum = EP_NUMBER_REGEX.find(epName)?.value?.toIntOrNull() ?: 1
                 val link = ep.link_m3u8 ?: return@forEach
-                ophimEpsMap.getOrPut(epNum) { epName to mutableListOf() }
-                    .second.add("$link|$sName")
+                map.getOrPut(epNum) { epName to mutableListOf() }.second.add("$link|$sName")
             }
         }
+        return map
+    }
 
-        if (tmdbId == null) {
-            return ophimEpsMap.map { (num, data) ->
-                newEpisode(data.second.joinToString(",")) {
-                    this.name = if (data.first.contains("Tập", ignoreCase = true)) data.first else "Tập ${data.first}"
-                    this.episode = num
-                }
-            }.sortedBy { it.episode }
-        }
-
-        val tmdbSeason = if (isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
+    // Phase 2 (sync): merge với TMDB season data đã fetch xong — không có network call
+    private fun mergeEpisodes(
+        ophimEpsMap: Map<Int, Pair<String, MutableList<String>>>,
+        tmdbId: String?,
+        tmdbSeason: TmdbSeasonResponse?
+    ): List<Episode> {
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
 
         return ophimEpsMap.map { (num, data) ->
