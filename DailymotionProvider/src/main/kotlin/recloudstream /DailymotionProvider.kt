@@ -180,7 +180,7 @@ class DailymotionProvider : MainAPI() {
             return newTvSeriesLoadResponse(
                 detail.name, url, TvType.TvSeries,
                 // [NOTE] Bỏ .reversed() — nếu cần thứ tự đặc biệt hãy uncomment
-                videos.map { video ->
+                videos.reversed().map { video ->
                     newEpisode("https://www.dailymotion.com/video/${video.id}") {
                         this.name = video.title
                         this.posterUrl = video.thumbnail360Url
