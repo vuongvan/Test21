@@ -103,15 +103,17 @@ class KKPExProvider : MainAPI() {
         }
     }
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val items = getCustomCategories(page)
-        val homePageLists = coroutineScope {
-            items.map { (url, title) ->
-                async { HomePageList(title, getListFromUrl(url)) }
-            }.map { it.await() }
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? =
+        coroutineScope {
+            val categories = getCustomCategories(page)
+            // Tất cả category fetch chạy song song — 6×700ms → ~700ms
+            val homeItems = categories
+                .map { (url, catName) -> async { HomePageList(catName, getListFromUrl(url)) } }
+                .awaitAll()
+                .filter { it.list.isNotEmpty() }
+            newHomePageResponse(homeItems, hasNext = true)
         }
-        return newHomePageResponse(homePageLists, true)
-    }
+
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/v1/api/tim-kiem?keyword=$query&limit=50"
