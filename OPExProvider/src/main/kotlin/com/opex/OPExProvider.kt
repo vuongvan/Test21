@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 class OPExProvider : MainAPI() {
@@ -66,13 +67,16 @@ class OPExProvider : MainAPI() {
     // Cache categories để tránh đọc SharedPreferences lặp lại mỗi page scroll
     @Volatile private var cachedCategories: List<Pair<String, String>>? = null
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val categories = getCustomCategories(page)
-        val homeItems = categories.map { (url, catName) ->
-            HomePageList(catName, getListFromUrl(url))
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? =
+        coroutineScope {
+            val categories = getCustomCategories(page)
+            // Tất cả category fetch chạy song song — 6×700ms → ~700ms
+            val homeItems = categories
+                .map { (url, catName) -> async { HomePageList(catName, getListFromUrl(url)) } }
+                .awaitAll()
+                .filter { it.list.isNotEmpty() }
+            newHomePageResponse(homeItems, hasNext = true)
         }
-        return newHomePageResponse(homeItems, hasNext = true)
-    }
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
