@@ -95,14 +95,14 @@ class OPExProvider : MainAPI() {
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
-            val data = parseJson<OPListResponse>(app.get(url, timeout = 15).text)
+            val data = parseJson<OPListResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
             val cdn = data.data?.APP_DOMAIN_CDN_IMAGE ?: data.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items
             items
                 ?.filter { it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
-                    newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
+                    newAnimeSearchResponse(item.name ?: "", item.slug ?: "", TvType.TvSeries) {
                         val currentEp = item.episode_current
                             ?.substringBefore("/")
                             ?.filter { c -> c.isDigit() }
@@ -121,7 +121,7 @@ class OPExProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? = coroutineScope {
-        val slug = url.split("/").last()
+        val slug = url
         val movieRoot = parseJson<OPRootResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
