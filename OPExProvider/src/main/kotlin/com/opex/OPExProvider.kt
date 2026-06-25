@@ -196,7 +196,7 @@ class OPExProvider : MainAPI() {
         val rawStatus = movie.status ?: ""
 
         return@coroutineScope if (isSeries) {
-            newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
+            newTvSeriesLoadResponse(movieName, "", TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -209,7 +209,7 @@ class OPExProvider : MainAPI() {
                     ShowStatus.Ongoing else ShowStatus.Completed
             }
         } else {
-            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+            newMovieLoadResponse(movieName, "", TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
