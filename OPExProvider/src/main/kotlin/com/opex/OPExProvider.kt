@@ -95,6 +95,7 @@ class OPExProvider : MainAPI() {
 
     private suspend fun getListFromUrl(url: String): List<SearchResponse> {
         return try {
+            val slug = url
             val data = parseJson<OPListResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
             val cdn = data.data?.APP_DOMAIN_CDN_IMAGE ?: data.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items
