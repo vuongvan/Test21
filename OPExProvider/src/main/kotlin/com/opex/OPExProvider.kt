@@ -6,7 +6,6 @@ import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -165,12 +164,6 @@ class OPExProvider : MainAPI() {
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 
-        // malId cần tmdbDetails.original_name (tên JP) nên await details trước rồi mới launch
-        // Vẫn async để không block luồng chính trong khi xử lý data khác
-        val malId = if (movie.type == "hoathinh") {
-            val jpTitle = tmdbDetails?.original_name ?: tmdbDetails?.original_title
-            OPExUtils.findMalId(listOf(jpTitle, movie.origin_name, movie.name), movie.year)
-        } else null
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
         val episodeList = mergeEpisodes(ophimEpsMap, tmdbId, tmdbSeason)
@@ -207,7 +200,7 @@ class OPExProvider : MainAPI() {
             ShowStatus.Ongoing else ShowStatus.Completed
 
         return@coroutineScope when {
-            // Anime (hoathinh) → newAnimeLoadResponse + addEpisodes + AniList ID
+            // Anime (hoathinh) → newAnimeLoadResponse + addEpisodes
             isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
                 addEpisodes(DubStatus.Subbed, episodeList)
                 this.posterUrl = posterUrl
@@ -220,8 +213,6 @@ class OPExProvider : MainAPI() {
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
                 addTMDbId(tmdbId)
-                // MAL ID từ AniList → CS3 tự fetch nhân vật anime
-                addMalId(malId)
             }
             // Phim lẻ
             !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {

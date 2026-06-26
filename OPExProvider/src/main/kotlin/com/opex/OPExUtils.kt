@@ -1,8 +1,6 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
-import okhttp3.RequestBody.Companion.toRequestBody
-import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -50,29 +48,8 @@ object OPExUtils {
 
 
 
-    // AniList GraphQL — public API, không cần key
-    // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
-    // Nhận danh sách tên theo thứ tự ưu tiên: tên Nhật gốc → tên Anh → tên Việt
-    // AniList match tốt nhất với tên gốc JP
-    suspend fun findMalId(titles: List<String?>, year: Int?): Int? {
-        val candidates = titles.filterNotNull().filter { it.isNotEmpty() }.distinct()
-        for (title in candidates) {
-            try {
-                val escaped = title.replace("\"", "\\\"")
-                val yearFilter = if (year != null) ", seasonYear: $year" else ""
-                val query = """{"query":"{ Media(search: \"$escaped\", type: ANIME$yearFilter) { idMal } }"}"""
-                val res = app.post(
-                    "https://graphql.anilist.co",
-                    headers = mapOf("Content-Type" to "application/json"),
-                    requestBody = query.toRequestBody()
-                ).parsedSafe<AniListResponse>()
-                val id = res?.data?.Media?.idMal
-                if (id != null) return id
-            } catch (e: Exception) { continue }
-        }
-        return null
-    }
 
+    // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
     suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
@@ -183,7 +160,7 @@ data class TmdbDetailResponse(
     val poster_path: String?,
     val backdrop_path: String?,
     val overview: String?,
-    val original_name: String?,        // tên gốc JP — dùng để query AniList
+    val original_name: String?,
     val original_title: String?,       // movie version
     val images: TmdbImagesResponse? = null   // từ append_to_response=images
 )
@@ -221,15 +198,4 @@ data class TmdbSearchResult(
     @param:JsonProperty("first_air_date") val firstAirDate: String? = null,
     @param:JsonProperty("title") val title: String? = null,
     @param:JsonProperty("release_date") val releaseDate: String? = null
-)
-
-// AniList GraphQL response
-data class AniListResponse(
-    @param:JsonProperty("data") val data: AniListData? = null
-)
-data class AniListData(
-    @param:JsonProperty("Media") val Media: AniListMedia? = null
-)
-data class AniListMedia(
-    @param:JsonProperty("idMal") val idMal: Int? = null
 )
