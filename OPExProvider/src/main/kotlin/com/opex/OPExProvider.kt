@@ -102,7 +102,7 @@ class OPExProvider : MainAPI() {
                 ?.filter { it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
-                    newAnimeSearchResponse(item.name ?: "", item.slug ?: "", TvType.TvSeries) {
+                    newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
                         val currentEp = item.episode_current
                             ?.substringBefore("/")
                             ?.filter { c -> c.isDigit() }
@@ -121,7 +121,7 @@ class OPExProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? = coroutineScope {
-        val slug = url
+        val slug = url.split("/").last()
         val movieRoot = parseJson<OPRootResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
@@ -207,6 +207,7 @@ class OPExProvider : MainAPI() {
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = if (rawStatus.contains("ongoing", ignoreCase = true))
                     ShowStatus.Ongoing else ShowStatus.Completed
+                addTMDbId(tmdbId)
             }
         } else {
             newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
@@ -218,6 +219,7 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
+                addTMDbId(tmdbId)
             }
         }
     }
