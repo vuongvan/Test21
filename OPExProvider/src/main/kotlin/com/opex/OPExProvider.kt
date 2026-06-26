@@ -3,8 +3,10 @@ package com.opex
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.addDubStatus
+import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -150,17 +152,23 @@ class OPExProvider : MainAPI() {
         // Chỉ await tmdbId khi cần để launch 4 TMDB calls — recsDeferred vẫn chạy nền
         val tmdbId = tmdbIdDeferred.await()
 
-        // Phase 2: 4 TMDB calls thực sự song song ngay sau khi có tmdbId
-        val castDeferred      = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
-        val detailsDeferred   = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
-        val seasonDeferred    = async {
+        // Phase 2: TMDB calls thực sự song song ngay sau khi có tmdbId
+        val castDeferred       = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
+        val detailsDeferred    = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
+        val seasonDeferred     = async {
             if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
+        }
+        // AniList ID chỉ cần cho anime — vẫn launch song song, await sau
+        val aniListIdDeferred  = async {
+            if (tmdbId != null && movie.type == "hoathinh")
+                OPExUtils.findAniListId(tmdbId, isSeries) else null
         }
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val actorsList          = castDeferred.await()
         val tmdbDetails         = detailsDeferred.await()
         val tmdbSeason          = seasonDeferred.await()
+        val aniListId           = aniListIdDeferred.await()
         val recommendationsList = recsDeferred.await()
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
@@ -193,8 +201,14 @@ class OPExProvider : MainAPI() {
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val rawStatus = movie.status ?: ""
 
-        return@coroutineScope if (isSeries) {
-            newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
+        val isAnime = movie.type == "hoathinh"
+        val showStatus = if (rawStatus.contains("ongoing", ignoreCase = true))
+            ShowStatus.Ongoing else ShowStatus.Completed
+
+        return@coroutineScope when {
+            // Anime (hoathinh) → newAnimeLoadResponse + addEpisodes + AniList ID
+            isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
+                addEpisodes(DubStatus.Subbed, episodeList)
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -203,12 +217,25 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                this.showStatus = if (rawStatus.contains("ongoing", ignoreCase = true))
-                    ShowStatus.Ongoing else ShowStatus.Completed
+                this.showStatus = showStatus
+                addTMDbId(tmdbId)
+                // AniList ID để CS3 fetch nhân vật anime từ AniList tracker
+                addAniListId(aniListId)
+            }
+            // Phim lẻ
+            !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+                this.posterUrl = posterUrl
+                this.backgroundPosterUrl = finalBackdropUrl
+                this.recommendations = recommendationsList
+                this.plot = plotClean
+                this.year = movie.year
+                this.tags = metaTags
+                this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
                 addTMDbId(tmdbId)
             }
-        } else {
-            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+            // Series thường
+            else -> newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -217,6 +244,7 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
+                this.showStatus = showStatus
                 addTMDbId(tmdbId)
             }
         }

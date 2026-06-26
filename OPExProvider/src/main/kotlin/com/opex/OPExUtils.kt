@@ -47,6 +47,16 @@ object OPExUtils {
     }
 
 
+    // Lấy AniList ID từ TMDB external_ids — CS3 dùng để fetch nhân vật anime từ AniList tracker
+    suspend fun findAniListId(tmdbId: String, isSeries: Boolean): Int? {
+        return try {
+            val tmdbType = if (isSeries) "tv" else "movie"
+            val res = app.get("$TMDB_BASE/$tmdbType/$tmdbId/external_ids?api_key=$TMDB_API_KEY")
+                .parsedSafe<TmdbExternalIds>()
+            res?.anilist_id
+        } catch (e: Exception) { null }
+    }
+
     suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
@@ -192,4 +202,10 @@ data class TmdbSearchResult(
     @param:JsonProperty("first_air_date") val firstAirDate: String? = null,
     @param:JsonProperty("title") val title: String? = null,
     @param:JsonProperty("release_date") val releaseDate: String? = null
+)
+
+data class TmdbExternalIds(
+    @param:JsonProperty("imdb_id") val imdb_id: String? = null,
+    @param:JsonProperty("tvdb_id") val tvdb_id: Int? = null,
+    @param:JsonProperty("anilist_id") val anilist_id: Int? = null
 )
