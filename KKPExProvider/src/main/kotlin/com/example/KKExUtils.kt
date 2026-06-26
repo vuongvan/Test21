@@ -13,8 +13,8 @@ import android.content.Context
 
 object KKExUtils {
 
+    // [FIX 4] Bỏ TMDB_API_KEY thừa — chỉ cần 1 biến
     private val tmdbApiKey = "YOUR_API_KEY_HERE" // Giữ nguyên chữ này để lệnh sed tìm thấy
-    private val TMDB_API_KEY = tmdbApiKey
 
     fun fixPosterUrl(url: String?): String? {
         if (url.isNullOrEmpty()) return null
@@ -49,7 +49,7 @@ object KKExUtils {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
 
-        val searchUrl = "https://api.themoviedb.org/3/search/$tmdbType?api_key=$TMDB_API_KEY&query=$queryName&language=vi-VN"
+        val searchUrl = "https://api.themoviedb.org/3/search/$tmdbType?api_key=$tmdbApiKey&query=$queryName&language=vi-VN"
         return try {
             val response = app.get(searchUrl).parsedSafe<TmdbSearchResponse>()
             response?.results?.firstOrNull { result ->
@@ -81,6 +81,7 @@ object KKExUtils {
     )
 
     suspend fun fetchTmdbBundle(tmdbType: String, tmdbId: String): TmdbBundle = coroutineScope {
+        // Launch tất cả song song, await riêng từng cái — type-safe hơn awaitAll với mixed types
         val castDeferred     = async { fetchTmdbCast(tmdbType, tmdbId) }
         val detailsDeferred  = async { fetchTmdbDetails(tmdbType, tmdbId) }
         val backdropDeferred = async { fetchTmdbBackdrops(tmdbType, tmdbId) }
@@ -102,6 +103,7 @@ object KKExUtils {
     )
 
     suspend fun fetchTmdbSeriesBundle(tmdbId: String, seasonNumber: Int): TmdbSeriesBundle = coroutineScope {
+        // Launch tất cả song song, await riêng từng cái — type-safe hơn awaitAll với mixed types
         val castDeferred     = async { fetchTmdbCast("tv", tmdbId) }
         val detailsDeferred  = async { fetchTmdbDetails("tv", tmdbId) }
         val backdropDeferred = async { fetchTmdbBackdrops("tv", tmdbId) }
@@ -193,10 +195,6 @@ data class KKTMDB(
     @param:JsonProperty("id") val id: String? = null,
     @param:JsonProperty("season") val season: Int? = null,
     @param:JsonProperty("vote_average") val vote_average: Double? = null
-)
-
-data class TmdbCredits(
-    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
 )
 
 data class TmdbCast(
