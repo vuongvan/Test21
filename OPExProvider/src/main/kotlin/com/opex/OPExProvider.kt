@@ -124,6 +124,7 @@ class OPExProvider : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? = coroutineScope {
         val slug = url.split("/").last()
+        val webUrl = "$apiUrl/phim/$slug"
         val movieRoot = parseJson<OPRootResponse>(app.get("$apiUrl/v1/api/phim/$slug").text)
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
@@ -198,7 +199,7 @@ class OPExProvider : MainAPI() {
         val rawStatus = movie.status ?: ""
 
         return@coroutineScope if (isSeries) {
-            newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
+            newTvSeriesLoadResponse(movieName, webUrl, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -212,7 +213,7 @@ class OPExProvider : MainAPI() {
                 addTMDbId(tmdbId)
             }
         } else {
-            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+            newMovieLoadResponse(movieName, webUrl, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
