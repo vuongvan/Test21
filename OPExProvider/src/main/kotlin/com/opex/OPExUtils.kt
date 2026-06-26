@@ -4,8 +4,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 object OPExUtils {
     // Nên được nạp từ GitHub Secret qua YAML khi build
@@ -15,19 +13,12 @@ object OPExUtils {
     private const val TMDB_IMG_500 = "https://image.tmdb.org/t/p/w500"
     private const val TMDB_IMG_1280 = "https://image.tmdb.org/t/p/w1280"
 
-    fun fixImgUrl(url: String?, domain: String?): String? {
-        if (url.isNullOrBlank()) return null
-        if (url.startsWith("http")) return url
-        val cleanDomain = domain?.trimEnd('/') ?: "https://img.ophim1.com"
-        val cleanPath = url.trimStart('/')
-        return if (cleanPath.startsWith("uploads/")) "$cleanDomain/$cleanPath"
-               else "$cleanDomain/uploads/movies/$cleanPath"
-    }
 
+    // append_to_response=images gộp backdrop vào cùng 1 call — bỏ fetchTmdbBackdrops riêng
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         return try {
             parseJson<TmdbDetailResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN").text
+                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN&append_to_response=images").text
             )
         } catch (e: Exception) { null }
     }
@@ -55,29 +46,24 @@ object OPExUtils {
         } catch (e: Exception) { null }
     }
 
-    suspend fun fetchTmdbBackdrops(tmdbType: String, tmdbId: String): List<String> {
-        return try {
-            val response = parseJson<TmdbImagesResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId/images?api_key=$TMDB_API_KEY").text
-            )
-            response.backdrops?.mapNotNull { it.filePath?.let { p -> "$TMDB_IMG_1280$p" } } ?: emptyList()
-        } catch (e: Exception) { emptyList() }
-    }
 
     suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
 
         val tmdbType = if (isSeries) "tv" else "movie"
+        // encode để tránh URL sai với tên có dấu cách / tiếng Việt
+        val encoded = java.net.URLEncoder.encode(queryName, "UTF-8")
         return try {
             val response = app.get(
-                "$TMDB_BASE/search/$tmdbType?api_key=$TMDB_API_KEY&query=$queryName&language=vi-VN"
+                "$TMDB_BASE/search/$tmdbType?api_key=$TMDB_API_KEY&query=$encoded&language=vi-VN"
             ).parsedSafe<TmdbSearchResponse>()
 
             response?.results?.firstOrNull { result ->
                 val rawDate = if (isSeries) result.firstAirDate else result.releaseDate
                 val tmdbYear = rawDate?.take(4)?.toIntOrNull()
-                tmdbYear != null && tmdbYear == year
+                // cho phép lệch 1 năm (ophim đôi khi ghi năm sản xuất, TMDB ghi năm phát sóng)
+                tmdbYear != null && kotlin.math.abs(tmdbYear - year) <= 1
             }?.id?.toString()
         } catch (e: Exception) { null }
     }
@@ -121,12 +107,9 @@ data class OPRootResponse(@param:JsonProperty("data") val data: OPDataContent? =
 
 data class OPDataContent(
     @param:JsonProperty("item") val item: OPItemDetail? = null,
-    @param:JsonProperty("seoOnPage") val seoOnPage: OPSeoOnPage? = null,
     @param:JsonProperty("APP_DOMAIN_CDN_IMAGE") val APP_DOMAIN_CDN_IMAGE: String? = null
 )
 
-data class OPSeoOnPage(@param:JsonProperty("seoSchema") val seoSchema: OPSeoSchema? = null)
-data class OPSeoSchema(@param:JsonProperty("image") val image: String? = null)
 
 data class OPItemDetail(
     @param:JsonProperty("name") val name: String? = null,
@@ -172,7 +155,8 @@ data class TmdbDetailResponse(
     val vote_average: Double?,
     val poster_path: String?,
     val backdrop_path: String?,
-    val overview: String?
+    val overview: String?,
+    val images: TmdbImagesResponse? = null   // từ append_to_response=images
 )
 
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)

@@ -58,16 +58,12 @@ class OPExProvider : MainAPI() {
         }
     }
 
-    // mainUrl không override → mặc định "NONE" → CS3 ẩn globe icon
-    var apiUrl = "https://ophim1.com"
+    override var mainUrl = "https://ophim1.com"
     override var name = "OPhim"
     override val hasMainPage = true
     override var lang = "vi"
     override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
-
-    // Cache categories để tránh đọc SharedPreferences lặp lại mỗi page scroll
-    @Volatile private var cachedCategories: List<Pair<String, String>>? = null
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? =
         coroutineScope {
@@ -89,7 +85,7 @@ class OPExProvider : MainAPI() {
             val displayName = prefs.getString(getPreferenceNameKey(i + 1), DEFAULT_NAMES[i]) ?: DEFAULT_NAMES[i]
             val sep = if (path.contains('?')) "&" else "?"
             val finalUrl = if (path.startsWith("http")) "$path${sep}page=$page"
-                           else "$apiUrl/$path${sep}page=$page"
+                           else "$mainUrl/$path${sep}page=$page"
             result.add(finalUrl to displayName)
         }
         return result
@@ -104,7 +100,7 @@ class OPExProvider : MainAPI() {
                 ?.filter { it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
-                    newAnimeSearchResponse(item.name ?: "", "$apiUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
+                    newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
                         val currentEp = item.episode_current
                             ?.substringBefore("/")
                             ?.filter { c -> c.isDigit() }
@@ -124,8 +120,7 @@ class OPExProvider : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? = coroutineScope {
         val slug = url.split("/").last()
-        val webUrl = "$apiUrl/phim/$slug"
-        val movieRoot = parseJson<OPRootResponse>(app.get("$apiUrl/v1/api/phim/$slug").text)
+        val movieRoot = parseJson<OPRootResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
         val cdn = data.APP_DOMAIN_CDN_IMAGE
@@ -147,7 +142,7 @@ class OPExProvider : MainAPI() {
             val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
             if (countrySlug.isNotEmpty()) {
                 val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
-                val recUrl = "$apiUrl/v1/api/quoc-gia/$countrySlug?limit=20&category=$categorySlugs&sort_field=year&sort_type=desc"
+                val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=20&category=$categorySlugs&sort_field=year&sort_type=desc"
                 getListFromUrl(recUrl).take(16)
             } else emptyList<SearchResponse>()
         }
@@ -158,7 +153,6 @@ class OPExProvider : MainAPI() {
         // Phase 2: 4 TMDB calls thực sự song song ngay sau khi có tmdbId
         val castDeferred      = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
         val detailsDeferred   = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
-        val backdropsDeferred = async { tmdbId?.let { OPExUtils.fetchTmdbBackdrops(tmdbType, it) } }
         val seasonDeferred    = async {
             if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
         }
@@ -166,7 +160,6 @@ class OPExProvider : MainAPI() {
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val actorsList          = castDeferred.await()
         val tmdbDetails         = detailsDeferred.await()
-        val tmdbBackdrops       = backdropsDeferred.await()
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 
@@ -176,7 +169,9 @@ class OPExProvider : MainAPI() {
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
             ?: "$cdn/uploads/movies/${movie.thumb_url}"
 
-        val finalBackdropUrl = tmdbBackdrops?.randomOrNull()
+        val finalBackdropUrl = tmdbDetails?.images?.backdrops
+            ?.mapNotNull { it.filePath?.let { p -> "https://image.tmdb.org/t/p/w1280$p" } }
+            ?.randomOrNull()
             ?: "$cdn/uploads/movies/${movie.poster_url}"
 
         // Build meta tags
@@ -199,7 +194,7 @@ class OPExProvider : MainAPI() {
         val rawStatus = movie.status ?: ""
 
         return@coroutineScope if (isSeries) {
-            newTvSeriesLoadResponse(movieName, webUrl, TvType.TvSeries, episodeList) {
+            newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -213,7 +208,7 @@ class OPExProvider : MainAPI() {
                 addTMDbId(tmdbId)
             }
         } else {
-            newMovieLoadResponse(movieName, webUrl, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
+            newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -282,5 +277,5 @@ class OPExProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> =
-        getListFromUrl("$apiUrl/v1/api/tim-kiem?keyword=$query&limit=30")
+        getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=30")
 }
