@@ -1,6 +1,8 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
+import okhttp3.RequestBody.Companion.toRequestBody
+import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -47,13 +49,26 @@ object OPExUtils {
     }
 
 
-    // Lấy AniList ID từ TMDB external_ids — CS3 dùng để fetch nhân vật anime từ AniList tracker
-    suspend fun findAniListId(tmdbId: String, isSeries: Boolean): Int? {
+
+    // AniList GraphQL — public API, không cần key
+    // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
+    suspend fun findMalId(title: String?, year: Int?): Int? {
+        if (title.isNullOrEmpty()) return null
         return try {
-            val tmdbType = if (isSeries) "tv" else "movie"
-            val res = app.get("$TMDB_BASE/$tmdbType/$tmdbId/external_ids?api_key=$TMDB_API_KEY")
-                .parsedSafe<TmdbExternalIds>()
-            res?.anilist_id
+            val query = """
+                query {
+                    Media(search: "$title", type: ANIME${if (year != null) ", seasonYear: $year" else ""}) {
+                        idMal
+                    }
+                }
+            """.trimIndent()
+            val res = app.post(
+                "https://graphql.anilist.co",
+                headers = mapOf("Content-Type" to "application/json"),
+                requestBody = """{"query":${com.fasterxml.jackson.databind.ObjectMapper()
+                    .writeValueAsString(query)}}""".toRequestBody()
+            ).parsedSafe<AniListResponse>()
+            res?.data?.Media?.idMal
         } catch (e: Exception) { null }
     }
 
@@ -205,8 +220,13 @@ data class TmdbSearchResult(
     @param:JsonProperty("release_date") val releaseDate: String? = null
 )
 
-data class TmdbExternalIds(
-    @param:JsonProperty("imdb_id") val imdb_id: String? = null,
-    @param:JsonProperty("tvdb_id") val tvdb_id: Int? = null,
-    @param:JsonProperty("anilist_id") val anilist_id: Int? = null
+// AniList GraphQL response
+data class AniListResponse(
+    @param:JsonProperty("data") val data: AniListData? = null
+)
+data class AniListData(
+    @param:JsonProperty("Media") val Media: AniListMedia? = null
+)
+data class AniListMedia(
+    @param:JsonProperty("idMal") val idMal: Int? = null
 )

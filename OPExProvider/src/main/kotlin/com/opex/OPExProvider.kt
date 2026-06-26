@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -152,23 +152,23 @@ class OPExProvider : MainAPI() {
         // Chỉ await tmdbId khi cần để launch 4 TMDB calls — recsDeferred vẫn chạy nền
         val tmdbId = tmdbIdDeferred.await()
 
-        // Phase 2: TMDB calls thực sự song song ngay sau khi có tmdbId
+        // Phase 2: TMDB calls + MAL ID thực sự song song ngay sau khi có tmdbId
         val castDeferred       = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
         val detailsDeferred    = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
         val seasonDeferred     = async {
             if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
         }
-        // AniList ID chỉ cần cho anime — vẫn launch song song, await sau
-        val aniListIdDeferred  = async {
-            if (tmdbId != null && movie.type == "hoathinh")
-                OPExUtils.findAniListId(tmdbId, isSeries) else null
+        // MAL ID qua AniList GraphQL — chỉ fetch cho anime, chạy song song
+        val malIdDeferred      = async {
+            if (movie.type == "hoathinh")
+                OPExUtils.findMalId(movie.origin_name ?: movie.name, movie.year) else null
         }
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val actorsList          = castDeferred.await()
         val tmdbDetails         = detailsDeferred.await()
         val tmdbSeason          = seasonDeferred.await()
-        val aniListId           = aniListIdDeferred.await()
+        val malId               = malIdDeferred.await()
         val recommendationsList = recsDeferred.await()
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
@@ -219,8 +219,8 @@ class OPExProvider : MainAPI() {
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
                 addTMDbId(tmdbId)
-                // AniList ID để CS3 fetch nhân vật anime từ AniList tracker
-                addAniListId(aniListId)
+                // MAL ID từ AniList → CS3 tự fetch nhân vật anime
+                addMalId(malId)
             }
             // Phim lẻ
             !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
