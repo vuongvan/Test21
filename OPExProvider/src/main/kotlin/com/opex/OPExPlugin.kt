@@ -12,7 +12,7 @@ class OPExPlugin: Plugin() {
         val prefs = context.getSharedPreferences(OPExProvider.PREFS_NAME, Context.MODE_PRIVATE)
         val domain = prefs.getString(OPExProvider.PREF_DOMAIN, null)
         val provider = OPExProvider()
-        if (!domain.isNullOrEmpty()) provider.mainUrl = domain
+        if (!domain.isNullOrEmpty()) provider.apiUrl = domain
         OPExProvider.ctx = context
         registerMainAPI(provider)
         val activity = context as? AppCompatActivity

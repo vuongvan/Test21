@@ -4,13 +4,13 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.Score
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 
 class OPExProvider : MainAPI() {
     companion object {
@@ -58,7 +58,8 @@ class OPExProvider : MainAPI() {
         }
     }
 
-    override var mainUrl = "https://ophim1.com"
+    // mainUrl không override → mặc định "NONE" → CS3 ẩn globe icon
+    var apiUrl = "https://ophim1.com"
     override var name = "OPhim"
     override val hasMainPage = true
     override var lang = "vi"
@@ -88,7 +89,7 @@ class OPExProvider : MainAPI() {
             val displayName = prefs.getString(getPreferenceNameKey(i + 1), DEFAULT_NAMES[i]) ?: DEFAULT_NAMES[i]
             val sep = if (path.contains('?')) "&" else "?"
             val finalUrl = if (path.startsWith("http")) "$path${sep}page=$page"
-                           else "$mainUrl/$path${sep}page=$page"
+                           else "$apiUrl/$path${sep}page=$page"
             result.add(finalUrl to displayName)
         }
         return result
@@ -103,7 +104,7 @@ class OPExProvider : MainAPI() {
                 ?.filter { it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
-                    newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
+                    newAnimeSearchResponse(item.name ?: "", "$apiUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
                         val currentEp = item.episode_current
                             ?.substringBefore("/")
                             ?.filter { c -> c.isDigit() }
@@ -123,7 +124,7 @@ class OPExProvider : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? = coroutineScope {
         val slug = url.split("/").last()
-        val movieRoot = parseJson<OPRootResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
+        val movieRoot = parseJson<OPRootResponse>(app.get("$apiUrl/v1/api/phim/$slug").text)
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
         val cdn = data.APP_DOMAIN_CDN_IMAGE
@@ -145,7 +146,7 @@ class OPExProvider : MainAPI() {
             val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
             if (countrySlug.isNotEmpty()) {
                 val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
-                val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=20&category=$categorySlugs&sort_field=year&sort_type=desc"
+                val recUrl = "$apiUrl/v1/api/quoc-gia/$countrySlug?limit=20&category=$categorySlugs&sort_field=year&sort_type=desc"
                 getListFromUrl(recUrl).take(16)
             } else emptyList<SearchResponse>()
         }
@@ -280,5 +281,5 @@ class OPExProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> =
-        getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=30")
+        getListFromUrl("$apiUrl/v1/api/tim-kiem?keyword=$query&limit=30")
 }
