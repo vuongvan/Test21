@@ -158,18 +158,19 @@ class OPExProvider : MainAPI() {
         val seasonDeferred     = async {
             if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
         }
-        // MAL ID qua AniList GraphQL — chỉ fetch cho anime, chạy song song
-        val malIdDeferred      = async {
-            if (movie.type == "hoathinh")
-                OPExUtils.findMalId(movie.origin_name ?: movie.name, movie.year) else null
-        }
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val actorsList          = castDeferred.await()
         val tmdbDetails         = detailsDeferred.await()
         val tmdbSeason          = seasonDeferred.await()
-        val malId               = malIdDeferred.await()
         val recommendationsList = recsDeferred.await()
+
+        // malId cần tmdbDetails.original_name (tên JP) nên await details trước rồi mới launch
+        // Vẫn async để không block luồng chính trong khi xử lý data khác
+        val malId = if (movie.type == "hoathinh") {
+            val jpTitle = tmdbDetails?.original_name ?: tmdbDetails?.original_title
+            OPExUtils.findMalId(listOf(jpTitle, movie.origin_name, movie.name), movie.year)
+        } else null
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
         val episodeList = mergeEpisodes(ophimEpsMap, tmdbId, tmdbSeason)

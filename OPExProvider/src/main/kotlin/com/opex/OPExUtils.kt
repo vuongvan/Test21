@@ -52,24 +52,25 @@ object OPExUtils {
 
     // AniList GraphQL — public API, không cần key
     // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
-    suspend fun findMalId(title: String?, year: Int?): Int? {
-        if (title.isNullOrEmpty()) return null
-        return try {
-            val query = """
-                query {
-                    Media(search: "$title", type: ANIME${if (year != null) ", seasonYear: $year" else ""}) {
-                        idMal
-                    }
-                }
-            """.trimIndent()
-            val res = app.post(
-                "https://graphql.anilist.co",
-                headers = mapOf("Content-Type" to "application/json"),
-                requestBody = """{"query":${com.fasterxml.jackson.databind.ObjectMapper()
-                    .writeValueAsString(query)}}""".toRequestBody()
-            ).parsedSafe<AniListResponse>()
-            res?.data?.Media?.idMal
-        } catch (e: Exception) { null }
+    // Nhận danh sách tên theo thứ tự ưu tiên: tên Nhật gốc → tên Anh → tên Việt
+    // AniList match tốt nhất với tên gốc JP
+    suspend fun findMalId(titles: List<String?>, year: Int?): Int? {
+        val candidates = titles.filterNotNull().filter { it.isNotEmpty() }.distinct()
+        for (title in candidates) {
+            try {
+                val escaped = title.replace("\"", "\\\"")
+                val yearFilter = if (year != null) ", seasonYear: $year" else ""
+                val query = """{"query":"{ Media(search: \"$escaped\", type: ANIME$yearFilter) { idMal } }"}"""
+                val res = app.post(
+                    "https://graphql.anilist.co",
+                    headers = mapOf("Content-Type" to "application/json"),
+                    requestBody = query.toRequestBody()
+                ).parsedSafe<AniListResponse>()
+                val id = res?.data?.Media?.idMal
+                if (id != null) return id
+            } catch (e: Exception) { continue }
+        }
+        return null
     }
 
     suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
@@ -182,6 +183,8 @@ data class TmdbDetailResponse(
     val poster_path: String?,
     val backdrop_path: String?,
     val overview: String?,
+    val original_name: String?,        // tên gốc JP — dùng để query AniList
+    val original_title: String?,       // movie version
     val images: TmdbImagesResponse? = null   // từ append_to_response=images
 )
 
