@@ -125,6 +125,7 @@ data class OPItemDetail(
     @param:JsonProperty("name") val name: String? = null,
     @param:JsonProperty("content") val content: String? = null,
     @param:JsonProperty("origin_name") val origin_name: String? = null,
+    @param:JsonProperty("type") val type: String? = null,
     @param:JsonProperty("status") val status: String? = null,
     @param:JsonProperty("year") val year: Int? = null,
     @param:JsonProperty("episode_current") val episode_current: String? = null,
