@@ -10,6 +10,7 @@ import android.content.Context
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 
 class OPExProvider : MainAPI() {
     companion object {
