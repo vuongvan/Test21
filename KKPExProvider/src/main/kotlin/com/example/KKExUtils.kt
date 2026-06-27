@@ -138,6 +138,7 @@ data class KKListData(
 data class KKItem(
     @param:JsonProperty("name") val name: String? = null,
     @param:JsonProperty("slug") val slug: String? = null,
+    @param:JsonProperty("type") val type: String? = null,
     @param:JsonProperty("poster_url") val poster_url: String? = null,
     @param:JsonProperty("thumb_url") val thumb_url: String? = null,
     @param:JsonProperty("tmdb") val tmdb: KKTMDB? = null,
