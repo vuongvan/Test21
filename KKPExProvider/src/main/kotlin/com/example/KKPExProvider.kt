@@ -204,34 +204,57 @@ class KKPExProvider : MainAPI() {
         }
 
         // =====================================================================
-        // Xây dựng danh sách tập phim
+        // Xây dựng danh sách tập phim — tách Sub/Dub theo server_name
+        // Sub (Vietsub) = mặc định, Dub (Thuyết Minh / Lồng Tiếng) = slot riêng
         // =====================================================================
-        val episodeMap = mutableMapOf<String, MutableList<String>>()
+        val subEpMap   = mutableMapOf<Int, MutableList<String>>()
+        val dubEpMap   = mutableMapOf<Int, MutableList<String>>()
+        val subEpNames = mutableMapOf<Int, String>()
+
         res.episodes?.forEach { server ->
-            val serverName = server.server_name ?: "HLS"
+            val serverName  = server.server_name ?: "HLS"
+            val isDubServer = serverName.contains("Thuyết Minh", ignoreCase = true)
+                    || serverName.contains("Lồng Tiếng", ignoreCase = true)
+
             server.server_data?.forEach { ep ->
                 val epName = ep.name ?: "1"
-                episodeMap.getOrPut(epName) { mutableListOf() }
-                    .add("${ep.link_m3u8}::$serverName")
+                val epNum  = EP_NUM_REGEX.find(epName)?.value?.toIntOrNull() ?: return@forEach
+                val link   = ep.link_m3u8 ?: return@forEach
+
+                if (isDubServer) {
+                    dubEpMap.getOrPut(epNum) { mutableListOf() }.add("$link::$serverName")
+                } else {
+                    subEpMap.getOrPut(epNum) { mutableListOf() }.add("$link::$serverName")
+                    subEpNames[epNum] = epName
+                }
             }
         }
 
-        val episodesList = episodeMap.map { (epName, links) ->
-            // [FIX 2] Dùng EP_NUM_REGEX đã compile sẵn, không tạo Regex mới mỗi lần
-            val epNum = EP_NUM_REGEX.find(epName)?.value?.toIntOrNull()
-            val tmdbEp = tmdbEpisodesMap[epNum]
+        // Fallback: nếu không có sub server (phim 1 server), gộp dub vào sub
+        if (subEpMap.isEmpty() && dubEpMap.isNotEmpty()) {
+            dubEpMap.forEach { (k, v) -> subEpMap[k] = v }
+            dubEpMap.clear()
+        }
 
-            newEpisode(links.joinToString("|||")) {
-                this.name    = tmdbEp?.name ?: epName
-                this.episode = epNum
-                tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
-                this.description = tmdbEp?.overview
-                val rating = tmdbEp?.voteAverage
-                if (rating != null && rating > 0) this.score = Score.from10(rating)
-                this.runTime = tmdbEp?.runTime
-                this.addDate(tmdbEp?.airDate)
-            }
-        }.sortedBy { it.episode }
+        fun buildEpisodeList(epMap: Map<Int, List<String>>): List<Episode> =
+            epMap.map { (epNum, links) ->
+                val tmdbEp = tmdbEpisodesMap[epNum]
+                val epName = subEpNames[epNum] ?: "Tập $epNum"
+                newEpisode(links.joinToString("|||")) {
+                    this.name    = tmdbEp?.name ?: epName
+                    this.episode = epNum
+                    tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
+                    this.description = tmdbEp?.overview
+                    val rating = tmdbEp?.voteAverage
+                    if (rating != null && rating > 0) this.score = Score.from10(rating)
+                    this.runTime = tmdbEp?.runTime
+                    this.addDate(tmdbEp?.airDate)
+                }
+            }.sortedBy { it.episode }
+
+        val subEpisodesList = buildEpisodeList(subEpMap)
+        val dubEpisodesList = buildEpisodeList(dubEpMap)
+        val hasDub = dubEpisodesList.isNotEmpty()
 
         // =====================================================================
         // Metadata
@@ -269,10 +292,8 @@ class KKPExProvider : MainAPI() {
                 ?: movie.thumb_url
         }
 
-        // DubStatus cho anime
-        val langStr = movie.lang?.lowercase() ?: ""
-        val isDub   = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
-        val isSub   = langStr.contains("vietsub") || langStr.contains("phụ đề") || (!isDub)
+        // isDub/isSub đã được xác định chính xác qua việc tách server bên trên
+        // hasDub = true nếu API trả về server Thuyết Minh / Lồng Tiếng riêng biệt
 
         // =====================================================================
         // Build response
@@ -280,8 +301,9 @@ class KKPExProvider : MainAPI() {
         return when {
             isAnime && isSeries -> {
                 newAnimeLoadResponse(movie.name ?: "", url, TvType.Anime) {
-                    if (isDub) addEpisodes(DubStatus.Dubbed, episodesList)
-                    if (isSub) addEpisodes(DubStatus.Subbed, episodesList)
+                    // Sub luôn là mặc định (ưu tiên), Dub thêm nếu có
+                    addEpisodes(DubStatus.Subbed, subEpisodesList)
+                    if (hasDub) addEpisodes(DubStatus.Dubbed, dubEpisodesList)
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
                     this.year       = movie.year
@@ -295,10 +317,10 @@ class KKPExProvider : MainAPI() {
                 }
             }
             isAnime && !isSeries -> {
-                val movieData = episodesList.firstOrNull()?.data ?: ""
+                val movieData = subEpisodesList.firstOrNull()?.data ?: ""
                 newAnimeLoadResponse(movie.name ?: "", url, TvType.AnimeMovie) {
-                    if (isDub) addEpisodes(DubStatus.Dubbed, episodesList)
-                    if (isSub) addEpisodes(DubStatus.Subbed, episodesList)
+                    addEpisodes(DubStatus.Subbed, subEpisodesList)
+                    if (hasDub) addEpisodes(DubStatus.Dubbed, dubEpisodesList)
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
                     this.year   = movie.year
@@ -310,7 +332,30 @@ class KKPExProvider : MainAPI() {
                 }
             }
             isSeries -> {
-                newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, episodesList) {
+                // Series: gộp sub + dub vào 1 list, sub trước để mặc định là Vietsub
+                // loadLinks sẽ phân biệt qua server_name trong data string
+                val mergedEpisodes = if (hasDub) {
+                    // Merge theo epNum: sub links + dub links vào cùng 1 episode
+                    val allNums = (subEpMap.keys + dubEpMap.keys).toSortedSet()
+                    allNums.map { epNum ->
+                        val subLinks = subEpMap[epNum] ?: emptyList()
+                        val dubLinks = dubEpMap[epNum] ?: emptyList()
+                        val tmdbEp  = tmdbEpisodesMap[epNum]
+                        val epName  = subEpNames[epNum] ?: "Tập $epNum"
+                        newEpisode((subLinks + dubLinks).joinToString("|||")) {
+                            this.name    = tmdbEp?.name ?: epName
+                            this.episode = epNum
+                            tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
+                            this.description = tmdbEp?.overview
+                            val rating = tmdbEp?.voteAverage
+                            if (rating != null && rating > 0) this.score = Score.from10(rating)
+                            this.runTime = tmdbEp?.runTime
+                            this.addDate(tmdbEp?.airDate)
+                        }
+                    }
+                } else subEpisodesList
+
+                newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, mergedEpisodes) {
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
                     this.year       = movie.year
@@ -324,7 +369,11 @@ class KKPExProvider : MainAPI() {
                 }
             }
             else -> {
-                val movieData = episodesList.firstOrNull()?.data ?: ""
+                // Movie: gộp sub + dub links vào data string, sub trước
+                val allLinks = (subEpMap.values.flatten() + dubEpMap.values.flatten())
+                val movieData = allLinks.joinToString("|||").ifEmpty {
+                    subEpisodesList.firstOrNull()?.data ?: ""
+                }
                 newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, movieData) {
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
