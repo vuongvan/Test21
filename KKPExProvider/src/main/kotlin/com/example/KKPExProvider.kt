@@ -2,6 +2,7 @@ package com.example
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.addDubStatus
+import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
@@ -64,28 +65,21 @@ class KKPExProvider : MainAPI() {
             val href = "$mainUrl/phim/$slug"
             val poster = KKExUtils.fixPosterUrl(item.poster_url)
 
-            val langStr   = item.lang?.lowercase() ?: ""
-            val isDub     = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
-            val isSub     = langStr.contains("vietsub") || langStr.contains("phụ đề")
-            val isAnime   = item.type == "hoathinh"
-            val rating    = item.tmdb?.vote_average ?: 0.0
+            newAnimeSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = poster
 
-            val epText    = item.episode_current ?: ""
-            val currentEp = epText.substringBefore("/").filter { it.isDigit() }.toIntOrNull()
+                val epText = item.episode_current ?: ""
+                val currentEp = epText.substringBefore("/")
+                    .filter { it.isDigit() }
+                    .toIntOrNull()
 
-            if (isAnime) {
-                // Anime → newAnimeSearchResponse với dubStatus đúng
-                newAnimeSearchResponse(title, href, TvType.Anime) {
-                    this.posterUrl = poster
-                    addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
-                    if (rating > 0) this.score = Score.from10(rating)
-                }
-            } else {
-                // Phim thường → newMovieSearchResponse / newTvSeriesSearchResponse
-                newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                    this.posterUrl = poster
-                    if (rating > 0) this.score = Score.from10(rating)
-                }
+                val langStr = item.lang?.lowercase() ?: ""
+                val isDub = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
+                val isSub = langStr.contains("vietsub") || langStr.contains("phụ đề")
+                addDubStatus(isDub, isSub, if (isSub) 0 else currentEp, currentEp)
+
+                val rating = item.tmdb?.vote_average ?: 0.0
+                if (rating > 0) this.score = Score.from10(rating)
             }
         }
     }
@@ -275,19 +269,19 @@ class KKPExProvider : MainAPI() {
                 ?: movie.thumb_url
         }
 
-        // =====================================================================
-        // DubStatus cho anime — dựa vào field lang của API
-        // =====================================================================
+        // DubStatus cho anime
         val langStr = movie.lang?.lowercase() ?: ""
         val isDub   = langStr.contains("thuyết minh") || langStr.contains("lồng tiếng")
-        val isSub   = langStr.contains("vietsub") || langStr.contains("phụ đề")
+        val isSub   = langStr.contains("vietsub") || langStr.contains("phụ đề") || (!isDub)
 
         // =====================================================================
         // Build response
         // =====================================================================
         return when {
             isAnime && isSeries -> {
-                newAnimeLoadResponse(movie.name ?: "", url, TvType.Anime, null) {
+                newAnimeLoadResponse(movie.name ?: "", url, TvType.Anime) {
+                    if (isDub) addEpisodes(DubStatus.Dubbed, episodesList)
+                    if (isSub) addEpisodes(DubStatus.Subbed, episodesList)
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
                     this.year       = movie.year
@@ -298,16 +292,13 @@ class KKPExProvider : MainAPI() {
                     this.score      = if (finalRating > 0) Score.from10(finalRating) else null
                     this.actors     = finalActors
                     this.recommendations = recommendationsList
-                    // Gắn episodes vào đúng slot dub/sub
-                    if (isDub)       addDubStatus(DubStatus.Dubbed,   episodes = episodesList)
-                    if (isSub)       addDubStatus(DubStatus.Subbed,   episodes = episodesList)
-                    if (!isDub && !isSub) addDubStatus(DubStatus.Subbed, episodes = episodesList)
                 }
             }
             isAnime && !isSeries -> {
-                // Anime phim lẻ (OVA, movie)
                 val movieData = episodesList.firstOrNull()?.data ?: ""
-                newAnimeLoadResponse(movie.name ?: "", url, TvType.AnimeMovie, movieData) {
+                newAnimeLoadResponse(movie.name ?: "", url, TvType.AnimeMovie) {
+                    if (isDub) addEpisodes(DubStatus.Dubbed, episodesList)
+                    if (isSub) addEpisodes(DubStatus.Subbed, episodesList)
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
                     this.year   = movie.year
@@ -316,9 +307,6 @@ class KKPExProvider : MainAPI() {
                     this.score  = if (finalRating > 0) Score.from10(finalRating) else null
                     this.actors = finalActors
                     this.recommendations = recommendationsList
-                    if (isDub)            addDubStatus(DubStatus.Dubbed, episodes = episodesList)
-                    if (isSub)            addDubStatus(DubStatus.Subbed, episodes = episodesList)
-                    if (!isDub && !isSub) addDubStatus(DubStatus.Subbed, episodes = episodesList)
                 }
             }
             isSeries -> {
