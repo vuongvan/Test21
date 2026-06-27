@@ -19,7 +19,7 @@ object OPExUtils {
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         return try {
             parseJson<TmdbDetailResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY").text
+                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&append_to_response=images").text
             )
         } catch (e: Exception) { null }
     }
@@ -186,7 +186,8 @@ data class TmdbImagesResponse(
 data class TmdbImage(
     @param:JsonProperty("file_path") val filePath: String? = null,
     @param:JsonProperty("width") val width: Int? = null,
-    @param:JsonProperty("height") val height: Int? = null
+    @param:JsonProperty("height") val height: Int? = null,
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
 )
 
 data class TmdbSearchResponse(
