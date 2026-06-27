@@ -337,6 +337,7 @@ class KKPExProvider : MainAPI() {
                 }
             }
         }
+    }
 
     override suspend fun loadLinks(
         data: String,
