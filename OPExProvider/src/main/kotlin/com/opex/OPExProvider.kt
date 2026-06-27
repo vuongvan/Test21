@@ -209,10 +209,16 @@ class OPExProvider : MainAPI() {
             ShowStatus.Ongoing else ShowStatus.Completed
 
         return@coroutineScope when {
-            // Anime movie (hoathinh + 1 tập) → newAnimeLoadResponse AnimeMovie
-            isAnime && !isSeries -> newAnimeLoadResponse(movieName, url, TvType.AnimeMovie) {
-                if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
-                if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
+            // Anime movie (hoathinh + 1 tập) → newMovieLoadResponse với TvType.AnimeMovie
+            isAnime && !isSeries -> newMovieLoadResponse(movieName, url, TvType.AnimeMovie, episodeList.firstOrNull()?.data ?: "") {
+                this.posterUrl = posterUrl
+                this.backgroundPosterUrl = finalBackdropUrl
+                this.recommendations = recommendationsList
+                this.plot = plotClean
+                this.year = movie.year
+                this.tags = metaTags
+                this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
                 addTMDbId(tmdbId)
             }
             // Anime series (hoathinh + nhiều tập)
