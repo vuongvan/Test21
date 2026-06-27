@@ -152,15 +152,14 @@ class OPExProvider : MainAPI() {
         val tmdbId = tmdbIdDeferred.await()
 
         // Phase 2: TMDB calls + MAL ID thực sự song song ngay sau khi có tmdbId
-        val castDeferred       = async { tmdbId?.let { OPExUtils.fetchTmdbCast(tmdbType, it) } }
         val detailsDeferred    = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
         val seasonDeferred     = async {
             if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
         }
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
-        val actorsList          = castDeferred.await()
         val tmdbDetails         = detailsDeferred.await()
+        val actorsList          = OPExUtils.parseCast(tmdbDetails?.credits)
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 

@@ -14,28 +14,23 @@ object OPExUtils {
     private const val TMDB_IMG_1280 = "https://image.tmdb.org/t/p/w1280"
 
 
-    // append_to_response=images gộp backdrop vào cùng 1 call — bỏ fetchTmdbBackdrops riêng
-    // include_image_language=null lấy tất cả backdrop không phụ thuộc ngôn ngữ
+    // append_to_response=images,credits gộp 2 call thành 1
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         return try {
             parseJson<TmdbDetailResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&append_to_response=images").text
+                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&append_to_response=images,credits").text
             )
         } catch (e: Exception) { null }
     }
 
-    suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
-        return try {
-            val res = parseJson<TmdbCreditsResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId/credits?api_key=$TMDB_API_KEY&language=vi-VN").text
+    // Parse cast từ credits đã có trong TmdbDetailResponse — không cần call riêng
+    fun parseCast(credits: TmdbCreditsResponse?): List<ActorData>? {
+        return credits?.cast?.take(15)?.map { cast ->
+            ActorData(
+                Actor(cast.name ?: "", cast.profile_path?.let { "$TMDB_IMG_185$it" }),
+                roleString = cast.character
             )
-            res.cast?.take(15)?.map { cast ->
-                ActorData(
-                    Actor(cast.name ?: "", cast.profile_path?.let { "$TMDB_IMG_185$it" }),
-                    roleString = cast.character
-                )
-            }
-        } catch (e: Exception) { null }
+        }
     }
 
     // internal: chỉ dùng trong package com.opex (OPExProvider)
@@ -163,7 +158,8 @@ data class TmdbDetailResponse(
     @param:JsonProperty("overview") val overview: String?,
     @param:JsonProperty("original_name") val original_name: String?,
     @param:JsonProperty("original_title") val original_title: String?,
-    @param:JsonProperty("images") val images: TmdbImagesResponse? = null
+    @param:JsonProperty("images") val images: TmdbImagesResponse? = null,
+    @param:JsonProperty("credits") val credits: TmdbCreditsResponse? = null
 )
 
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
