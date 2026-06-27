@@ -202,7 +202,6 @@ class OPExProvider : MainAPI() {
         return@coroutineScope when {
             // Anime (hoathinh) → newAnimeLoadResponse + addEpisodes
             isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
-                addEpisodes(DubStatus.Subbed, episodeList)
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -212,7 +211,7 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
-                addTMDbId(tmdbId)
+                
             }
             // Phim lẻ
             !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
@@ -224,7 +223,7 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                addTMDbId(tmdbId)
+                
             }
             // Series thường
             else -> newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
@@ -237,7 +236,7 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
-                addTMDbId(tmdbId)
+                
             }
         }
     }
