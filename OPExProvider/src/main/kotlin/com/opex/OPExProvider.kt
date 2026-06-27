@@ -177,6 +177,7 @@ class OPExProvider : MainAPI() {
         val finalBackdropUrl = tmdbDetails?.images?.backdrops
             ?.mapNotNull { it.filePath?.let { p -> "https://image.tmdb.org/t/p/w1280$p" } }
             ?.randomOrNull()
+            ?: tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
             ?: "$cdn/uploads/movies/${movie.poster_url}"
 
         // Build meta tags

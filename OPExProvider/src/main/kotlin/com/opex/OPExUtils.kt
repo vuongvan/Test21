@@ -156,13 +156,13 @@ data class TmdbCreditsResponse(val cast: List<TmdbCast>?)
 data class TmdbCast(val name: String?, val profile_path: String?, val character: String?)
 
 data class TmdbDetailResponse(
-    val vote_average: Double?,
-    val poster_path: String?,
-    val backdrop_path: String?,
-    val overview: String?,
-    val original_name: String?,
-    val original_title: String?,       // movie version
-    val images: TmdbImagesResponse? = null   // từ append_to_response=images
+    @param:JsonProperty("vote_average") val vote_average: Double?,
+    @param:JsonProperty("poster_path") val poster_path: String?,
+    @param:JsonProperty("backdrop_path") val backdrop_path: String?,
+    @param:JsonProperty("overview") val overview: String?,
+    @param:JsonProperty("original_name") val original_name: String?,
+    @param:JsonProperty("original_title") val original_title: String?,
+    @param:JsonProperty("images") val images: TmdbImagesResponse? = null
 )
 
 data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
