@@ -15,10 +15,11 @@ object OPExUtils {
 
 
     // append_to_response=images gộp backdrop vào cùng 1 call — bỏ fetchTmdbBackdrops riêng
+    // include_image_language=null lấy tất cả backdrop không phụ thuộc ngôn ngữ
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         return try {
             parseJson<TmdbDetailResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN&append_to_response=images").text
+                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN&append_to_response=images&include_image_language=null").text
             )
         } catch (e: Exception) { null }
     }
