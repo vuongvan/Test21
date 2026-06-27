@@ -6,7 +6,7 @@ on:
       - dev
     paths:
       - 'OPExProvider/build.gradle.kts'
-      - 'KKExProvider/build.gradle.kts'
+      - 'KKPExProvider/build.gradle.kts'
   workflow_dispatch:
 
 jobs:
@@ -14,51 +14,73 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write # Cần quyền này để kích hoạt workflow khác
+      actions: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Process Versions
-        id: bump_version
+      - name: Bump versions
+        id: bump
         run: |
-          FILES=("OPExProvider/build.gradle.kts" "KKExProvider/build.gradle.kts")
+          FILES=(
+            "OPExProvider/build.gradle.kts"
+            "KKPExProvider/build.gradle.kts"
+          )
           UPDATED=false
+          SUMMARY=""
 
           for FILE in "${FILES[@]}"; do
-            if [ -f "$FILE" ]; then
-              CURRENT_VERSION=$(grep -oP 'version\s*=\s*\K[0-9]+' "$FILE")
-              if [ ! -z "$CURRENT_VERSION" ]; then
-                NEXT_VERSION=$((CURRENT_VERSION + 1))
-                sed -i "s/version = $CURRENT_VERSION/version = $NEXT_VERSION/g" "$FILE"
-                UPDATED=true
-              fi
+            if [[ ! -f "$FILE" ]]; then
+              echo "⚠️  $FILE not found, skipping"
+              continue
             fi
-          done
-          echo "updated=$UPDATED" >> $GITHUB_OUTPUT
 
-      - name: Commit and Push
-        if: steps.bump_version.outputs.updated == 'true'
+            CURRENT=$(grep -oP 'version\s*=\s*\K[0-9]+' "$FILE" | head -1)
+            if [[ -z "$CURRENT" ]]; then
+              echo "⚠️  No version found in $FILE, skipping"
+              continue
+            fi
+
+            NEXT=$((CURRENT + 1))
+            sed -i "s/version = $CURRENT/version = $NEXT/" "$FILE"
+            echo "✅ $FILE: $CURRENT → $NEXT"
+            SUMMARY="$SUMMARY\n- $FILE: $CURRENT → $NEXT"
+            UPDATED=true
+          done
+
+          echo "updated=$UPDATED" >> "$GITHUB_OUTPUT"
+          # Multiline safe output
+          {
+            echo "summary<<EOF"
+            echo -e "$SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        if: steps.bump.outputs.updated == 'true'
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "chore: bump versions [skip ci]"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add OPExProvider/build.gradle.kts KKPExProvider/build.gradle.kts
+          git commit -m "chore: bump plugin versions [skip ci]"
           git push
 
-      # --- ĐÂY LÀ ĐOẠN GỌI FILE BUILD.YML ---
-      - name: Trigger Build Workflow
-        if: steps.bump_version.outputs.updated == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'build.yml', // Tên file build của bạn
-              ref: 'dev' // Hoặc context.ref
-            })
-            
+      - name: Trigger build workflow
+        if: steps.bump.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build.yml --ref dev
+          echo "🚀 Build workflow triggered on dev"
+
+      - name: Summary
+        if: steps.bump.outputs.updated == 'true'
+        run: |
+          echo "### ✅ Version bump complete" >> "$GITHUB_STEP_SUMMARY"
+          echo -e "${{ steps.bump.outputs.summary }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🚀 Build workflow triggered" >> "$GITHUB_STEP_SUMMARY"
+          
