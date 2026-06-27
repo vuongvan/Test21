@@ -131,7 +131,7 @@ class OPExProvider : MainAPI() {
         val seasonNumber = movie.tmdb?.season ?: 1
 
         // Phase 1: build ophim episode map (pure local, không cần network)
-        val ophimEpsMap = buildOphimEpsMap(movie.episodes)
+        val (subEpsMap, dubEpsMap) = buildEpsMaps(movie.episodes)
 
         // Phase 1 (song song): resolve tmdbId + fetch recommendations
         // — cả 2 không phụ thuộc nhau, chạy ngay lập tức
@@ -166,7 +166,10 @@ class OPExProvider : MainAPI() {
 
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
-        val episodeList = mergeEpisodes(ophimEpsMap, tmdbId, tmdbSeason)
+        val subEpisodes = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
+        val dubEpisodes = mergeEpisodesFromMap(dubEpsMap, tmdbSeason)
+        // fallback cho phim thường: dùng sub, nếu ko có thì dub
+        val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
         val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
             ?: "$cdn/uploads/movies/${movie.thumb_url}"
@@ -202,6 +205,8 @@ class OPExProvider : MainAPI() {
         return@coroutineScope when {
             // Anime (hoathinh) → newAnimeLoadResponse + addEpisodes
             isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
+                if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
+                if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -211,7 +216,7 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
-                
+                addTMDbId(tmdbId)
             }
             // Phim lẻ
             !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
@@ -223,7 +228,7 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                
+                addTMDbId(tmdbId)
             }
             // Series thường
             else -> newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
@@ -236,35 +241,47 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
-                
+                addTMDbId(tmdbId)
             }
         }
     }
 
     // Phase 1 (sync): chỉ parse local data từ ophim, không có network call
-    private fun buildOphimEpsMap(ophimServers: List<OPServer>?): Map<Int, Pair<String, MutableList<String>>> {
-        val map = mutableMapOf<Int, Pair<String, MutableList<String>>>()
+    // Phân loại server thành Sub/Dub dựa theo server_name
+    private fun isDubServer(serverName: String): Boolean {
+        val lower = serverName.lowercase()
+        return lower.contains("thuyết minh") || lower.contains("thuyet minh")
+            || lower.contains("lồng tiếng") || lower.contains("long tieng")
+            || lower.contains("dub")
+    }
+
+    // Phase 1 (sync): build map riêng cho Sub và Dub
+    // Map<epNum, Pair<epName, links>>
+    private fun buildEpsMaps(ophimServers: List<OPServer>?):
+        Pair<MutableMap<Int, Pair<String, MutableList<String>>>,
+             MutableMap<Int, Pair<String, MutableList<String>>>> {
+        val subMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
+        val dubMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
         ophimServers?.forEach { server ->
             val sName = server.server_name ?: "Server"
+            val targetMap = if (isDubServer(sName)) dubMap else subMap
             server.server_data?.forEach { ep ->
                 val epName = ep.name ?: ""
                 val epNum = EP_NUMBER_REGEX.find(epName)?.value?.toIntOrNull() ?: 1
                 val link = ep.link_m3u8 ?: return@forEach
-                map.getOrPut(epNum) { epName to mutableListOf() }.second.add("$link|$sName")
+                targetMap.getOrPut(epNum) { epName to mutableListOf() }.second.add("$link|$sName")
             }
         }
-        return map
+        return subMap to dubMap
     }
 
-    // Phase 2 (sync): merge với TMDB season data đã fetch xong — không có network call
-    private fun mergeEpisodes(
-        ophimEpsMap: Map<Int, Pair<String, MutableList<String>>>,
-        tmdbId: String?,
+    // Phase 2 (sync): merge 1 map với TMDB season data
+    private fun mergeEpisodesFromMap(
+        epsMap: Map<Int, Pair<String, MutableList<String>>>,
         tmdbSeason: TmdbSeasonResponse?
     ): List<Episode> {
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
-
-        return ophimEpsMap.map { (num, data) ->
+        return epsMap.map { (num, data) ->
             val tmdbEp = tmdbEpsMap?.get(num)
             newEpisode(data.second.joinToString(",")) {
                 this.name = tmdbEp?.name
