@@ -24,7 +24,7 @@ object OPExUtils {
     }
 
     // Parse cast từ credits đã có trong TmdbDetailResponse — không cần call riêng
-    fun parseCast(credits: TmdbCreditsResponse?): List<ActorData>? {
+    fun parseCast(credits: TmdbCreditsResponse?, castCount: Int = 15): List<ActorData>? {
         return credits?.cast?.take(15)?.map { cast ->
             ActorData(
                 Actor(cast.name ?: "", cast.profile_path?.let { "$TMDB_IMG_185$it" }),
