@@ -64,7 +64,7 @@ class OPExProvider : MainAPI() {
     override val hasMainPage = true
     override var lang = "vi"
     override val hasQuickSearch = true
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AnimeMovie)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? =
         coroutineScope {
@@ -101,7 +101,13 @@ class OPExProvider : MainAPI() {
                 ?.filter { it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
-                    newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", TvType.TvSeries) {
+                    val tvType = when {
+                        item.type == "hoathinh" && item.episode_total?.trim() == "1" -> TvType.AnimeMovie
+                        item.type == "hoathinh" -> TvType.Anime
+                        item.episode_total?.trim() == "1" -> TvType.Movie
+                        else -> TvType.TvSeries
+                    }
+                    newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", tvType) {
                         val currentEp = item.episode_current
                             ?.substringBefore("/")
                             ?.filter { c -> c.isDigit() }
@@ -203,7 +209,13 @@ class OPExProvider : MainAPI() {
             ShowStatus.Ongoing else ShowStatus.Completed
 
         return@coroutineScope when {
-            // Anime (hoathinh) → newAnimeLoadResponse + addEpisodes
+            // Anime movie (hoathinh + 1 tập) → newAnimeLoadResponse AnimeMovie
+            isAnime && !isSeries -> newAnimeLoadResponse(movieName, url, TvType.AnimeMovie) {
+                if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
+                if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
+                addTMDbId(tmdbId)
+            }
+            // Anime series (hoathinh + nhiều tập)
             isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
                 if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
                 if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)

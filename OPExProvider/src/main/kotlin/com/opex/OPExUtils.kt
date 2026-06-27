@@ -88,9 +88,11 @@ data class OPItem(
     @param:JsonProperty("thumb_url") val thumb_url: String? = null,
     @param:JsonProperty("lang") val lang: String? = null,
     @param:JsonProperty("quality") val quality: String? = null,
+    @param:JsonProperty("type") val type: String? = null,
+    @param:JsonProperty("episode_current") val episode_current: String? = null,
+    @param:JsonProperty("episode_total") val episode_total: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
-    @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null,
-    @param:JsonProperty("episode_current") val episode_current: String? = null
+    @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null
 )
 
 data class OPTmdb(
