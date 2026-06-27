@@ -31,6 +31,14 @@ class OPExProvider : MainAPI() {
         const val PREF_CATEGORY_5_NAME = "category_5_name"
         const val PREF_CATEGORY_6_NAME = "category_6_name"
 
+        // Feature toggles
+        const val PREF_USE_TMDB_BACKDROP  = "use_tmdb_backdrop"   // default: true
+        const val PREF_USE_TMDB_POSTER    = "use_tmdb_poster"     // default: true
+        const val PREF_USE_RECOMMENDATIONS= "use_recommendations"  // default: true
+        const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
+        const val PREF_CAST_COUNT         = "cast_count"          // default: 15
+        const val PREF_TRAILER_COUNT      = "filter_trailer"      // default: true (lọc trailer)
+
         private val DEFAULT_PATHS = listOf(
             "v1/api/danh-sach/phim-moi-cap-nhat",
             "v1/api/danh-sach/phim-thuyet-minh",
@@ -64,7 +72,7 @@ class OPExProvider : MainAPI() {
     override val hasMainPage = true
     override var lang = "vi"
     override val hasQuickSearch = true
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AnimeMovie)
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? =
         coroutineScope {
@@ -97,12 +105,14 @@ class OPExProvider : MainAPI() {
             val data = parseJson<OPListResponse>(app.get(url, timeout = 15).text)
             val cdn = data.data?.APP_DOMAIN_CDN_IMAGE ?: data.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items
+            val filterTrailer = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                .getBoolean(PREF_TRAILER_COUNT, true)
             items
-                ?.filter { it.episode_current?.contains("trailer", ignoreCase = true) != true }
+                ?.filter { !filterTrailer || it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
                     val tvType = when {
-                        item.type == "hoathinh" && item.episode_total?.trim() == "1" -> TvType.AnimeMovie
+                        item.type == "hoathinh" && item.episode_total?.trim() == "1" -> TvType.Movie
                         item.type == "hoathinh" -> TvType.Anime
                         item.episode_total?.trim() == "1" -> TvType.Movie
                         else -> TvType.TvSeries
@@ -131,6 +141,12 @@ class OPExProvider : MainAPI() {
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
         val cdn = data.APP_DOMAIN_CDN_IMAGE
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val useTmdbBackdrop   = prefs.getBoolean(PREF_USE_TMDB_BACKDROP, true)
+        val useTmdbPoster     = prefs.getBoolean(PREF_USE_TMDB_POSTER, true)
+        val useRecommendations= prefs.getBoolean(PREF_USE_RECOMMENDATIONS, true)
+        val useTmdbPlot       = prefs.getBoolean(PREF_USE_TMDB_PLOT, true)
+        val castCount         = prefs.getInt(PREF_CAST_COUNT, 15)
 
         val isSeries = movie.episode_total?.trim() != "1"
         val tmdbType = movie.tmdb?.type ?: if (isSeries) "tv" else "movie"
@@ -146,6 +162,7 @@ class OPExProvider : MainAPI() {
                 ?: OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
         }
         val recsDeferred = async {
+            if (!useRecommendations) return@async emptyList<SearchResponse>()
             val countrySlug = movie.country?.firstOrNull()?.slug ?: ""
             if (countrySlug.isNotEmpty()) {
                 val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
@@ -165,7 +182,7 @@ class OPExProvider : MainAPI() {
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val tmdbDetails         = detailsDeferred.await()
-        val actorsList          = OPExUtils.parseCast(tmdbDetails?.credits)
+        val actorsList          = OPExUtils.parseCast(tmdbDetails?.credits, castCount)
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 
@@ -176,14 +193,18 @@ class OPExProvider : MainAPI() {
         // fallback cho phim thường: dùng sub, nếu ko có thì dub
         val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
-        val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
-            ?: "$cdn/uploads/movies/${movie.thumb_url}"
+        val posterUrl = if (useTmdbPoster)
+            tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
+                ?: "$cdn/uploads/movies/${movie.thumb_url}"
+        else "$cdn/uploads/movies/${movie.thumb_url}"
 
-        val finalBackdropUrl = tmdbDetails?.images?.backdrops
-            ?.mapNotNull { it.filePath?.let { p -> "https://image.tmdb.org/t/p/w1280$p" } }
-            ?.randomOrNull()
-            ?: tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-            ?: "$cdn/uploads/movies/${movie.poster_url}"
+        val finalBackdropUrl = if (useTmdbBackdrop)
+            tmdbDetails?.images?.backdrops
+                ?.mapNotNull { it.filePath?.let { p -> "https://image.tmdb.org/t/p/w1280$p" } }
+                ?.randomOrNull()
+                ?: tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                ?: "$cdn/uploads/movies/${movie.poster_url}"
+        else "$cdn/uploads/movies/${movie.poster_url}"
 
         // Build meta tags
         val metaTags = buildList {
@@ -200,7 +221,9 @@ class OPExProvider : MainAPI() {
         }
 
         val finalRating = tmdbDetails?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
-        val plotClean = (movie.content ?: "").replace(HTML_TAG_REGEX, "").replace("\\n", "\n")
+        val ophimPlot = (movie.content ?: "").replace(HTML_TAG_REGEX, "").replace("\\n", "\n")
+        val plotClean = if (useTmdbPlot && !tmdbDetails?.overview.isNullOrEmpty())
+            tmdbDetails!!.overview!! else ophimPlot
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val rawStatus = movie.status ?: ""
 
@@ -209,8 +232,8 @@ class OPExProvider : MainAPI() {
             ShowStatus.Ongoing else ShowStatus.Completed
 
         return@coroutineScope when {
-            // Anime movie (hoathinh + 1 tập) → newMovieLoadResponse với TvType.AnimeMovie
-            isAnime && !isSeries -> newMovieLoadResponse(movieName, url, TvType.AnimeMovie, episodeList.firstOrNull()?.data ?: "") {
+            // Anime movie (hoathinh + 1 tập) → Movie
+            isAnime && !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
