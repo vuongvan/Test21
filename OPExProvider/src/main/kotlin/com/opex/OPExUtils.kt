@@ -19,7 +19,7 @@ object OPExUtils {
     suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? {
         return try {
             parseJson<TmdbDetailResponse>(
-                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN&append_to_response=images&include_image_language=null").text
+                app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY").text
             )
         } catch (e: Exception) { null }
     }
