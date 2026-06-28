@@ -131,25 +131,26 @@ class SettingsFragment(
             "Mới Cập Nhật", "Phim Thuyết Minh", "Phim Lồng Tiếng",
             "Phim Lẻ", "Phim Hoạt Hình", "Danh Sách 6"
         )
-        val categoryNameEdits = mutableListOf<EditText>()
-        val categoryEdits     = mutableListOf<EditText>()
 
-        for (i in 1..6) {
-            layout.addView(label("Category $i — Tên hiển thị:"))
-            val nameEdit = editRow(
-                defaultNames[i - 1],
-                OPExProvider.getPreferenceNameKey(i),
-                sharedPref.getString(OPExProvider.getPreferenceNameKey(i), defaultNames[i - 1]) ?: defaultNames[i - 1]
-            )
-            layout.addView(label("Category $i — API path:"))
-            val pathEdit = editRow(
-                "v1/api/... hoặc URL đầy đủ",
-                OPExProvider.getPreferenceKey(i),
-                sharedPref.getString(OPExProvider.getPreferenceKey(i), defaultPaths[i - 1]) ?: defaultPaths[i - 1]
-            )
-            categoryNameEdits.add(nameEdit)
-            categoryEdits.add(pathEdit)
+        layout.addView(label("Format: Tên Hiển Thị|api/path (mỗi dòng 1 category)"))
+
+        // Build initial text: mỗi dòng = "Tên|path"
+        val initialText = (1..6).joinToString("\n") { i ->
+            val name = sharedPref.getString(OPExProvider.getPreferenceNameKey(i), defaultNames[i-1]) ?: defaultNames[i-1]
+            val path = sharedPref.getString(OPExProvider.getPreferenceKey(i), defaultPaths[i-1]) ?: defaultPaths[i-1]
+            "$name|$path"
         }
+        val categoryEdit = EditText(ctx).apply {
+            setText(initialText)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            isSingleLine = false
+            minLines = 6
+            maxLines = 10
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        layout.addView(categoryEdit)
 
         // ── Buttons ──────────────────────────────────────────────────────────
         fun promptRestart(title: String, message: String) {
@@ -176,9 +177,13 @@ class SettingsFragment(
                     putBoolean(OPExProvider.PREF_USE_RECOMMENDATIONS,  swRecs.isChecked)
                     putBoolean(OPExProvider.PREF_TRAILER_COUNT,        swFilterTrailer.isChecked)
                     putInt(OPExProvider.PREF_CAST_COUNT, castVal)
+                    // Parse "Tên|path" per line
+                    val lines = categoryEdit.text.toString().lines()
                     for (i in 0 until 6) {
-                        putString(OPExProvider.getPreferenceNameKey(i + 1), categoryNameEdits[i].text.toString())
-                        putString(OPExProvider.getPreferenceKey(i + 1),     categoryEdits[i].text.toString())
+                        val line = lines.getOrNull(i) ?: ""
+                        val parts = line.split("|", limit = 2)
+                        putString(OPExProvider.getPreferenceNameKey(i + 1), parts.getOrNull(0)?.trim() ?: defaultNames[i])
+                        putString(OPExProvider.getPreferenceKey(i + 1),     parts.getOrNull(1)?.trim() ?: defaultPaths[i])
                     }
                     apply()
                 }
@@ -201,10 +206,9 @@ class SettingsFragment(
                 swRecs.isChecked        = true
                 swFilterTrailer.isChecked = true
                 castCountEdit.setText("15")
-                for (i in 0 until 6) {
-                    categoryNameEdits[i].setText(defaultNames[i])
-                    categoryEdits[i].setText(defaultPaths[i])
-                }
+                categoryEdit.setText(
+                    (0 until 6).joinToString("\n") { i -> "${defaultNames[i]}|${defaultPaths[i]}" }
+                )
                 showToast("Đã reset")
                 promptRestart("Reset thành công", "Cần khởi động lại để áp dụng thay đổi.")
             }
