@@ -102,12 +102,15 @@ class SettingsFragment(
         val swRecs        = switchRow("Hiện phim đề xuất",         OPExProvider.PREF_USE_RECOMMENDATIONS, true)
 
         layout.addView(label("Số diễn viên hiển thị (1-30):"))
-        val castCountEdit = editRow(
-            "15",
-            OPExProvider.PREF_CAST_COUNT.toString(),
-            sharedPref.getInt(OPExProvider.PREF_CAST_COUNT, 15).toString(),
-            InputType.TYPE_CLASS_NUMBER
-        )
+        val castCountEdit = EditText(ctx).apply {
+            hint = "15"
+            setText(sharedPref.getInt(OPExProvider.PREF_CAST_COUNT, 15).toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        layout.addView(castCountEdit)
 
         // ── Section: Filter ──────────────────────────────────────────────────
         layout.addView(sectionHeader("🔍 Lọc nội dung"))
