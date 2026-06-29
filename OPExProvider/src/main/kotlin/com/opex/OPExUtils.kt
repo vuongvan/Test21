@@ -1,11 +1,70 @@
 package com.opex
 
 import com.lagradost.cloudstream3.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 
 object OPExUtils {
+    private const val TMDB_API_KEY  = "YOUR_API_KEY_HERE"
+    private const val TMDB_BASE     = "https://api.themoviedb.org/3"
+    private const val TMDB_IMG_185  = "https://image.tmdb.org/t/p/w185"
+    const val         TMDB_IMG_500  = "https://image.tmdb.org/t/p/w500"
+    const val         TMDB_IMG_1280 = "https://image.tmdb.org/t/p/w1280"
+
+    // 2 calls song song:
+    // - vi-VN + credits → overview/cast tiếng Việt
+    // - /images (không language) → backdrops đầy đủ
+    suspend fun fetchTmdbDetails(tmdbType: String, tmdbId: String): TmdbDetailResponse? =
+        try {
+            coroutineScope {
+                val textDeferred = async {
+                    parseJson<TmdbDetailResponse>(
+                        app.get("$TMDB_BASE/$tmdbType/$tmdbId?api_key=$TMDB_API_KEY&language=vi-VN&append_to_response=credits").text
+                    )
+                }
+                val imagesDeferred = async {
+                    parseJson<TmdbImagesResponse>(
+                        app.get("$TMDB_BASE/$tmdbType/$tmdbId/images?api_key=$TMDB_API_KEY").text
+                    )
+                }
+                textDeferred.await()?.copy(images = imagesDeferred.await())
+            }
+        } catch (e: Exception) { null }
+
+    // Parse cast từ credits — không cần call riêng
+    fun parseCast(credits: TmdbCreditsResponse?, castCount: Int = 15): List<ActorData>? =
+        credits?.cast?.take(castCount)?.map { cast ->
+            ActorData(
+                Actor(cast.name ?: "", cast.profile_path?.let { "$TMDB_IMG_185$it" }),
+                roleString = cast.character
+            )
+        }
+
+    internal suspend fun fetchTmdbSeason(tmdbId: String, seasonNumber: Int): TmdbSeasonResponse? =
+        try {
+            parseJson<TmdbSeasonResponse>(
+                app.get("$TMDB_BASE/tv/$tmdbId/season/$seasonNumber?api_key=$TMDB_API_KEY&language=vi-VN").text
+            )
+        } catch (e: Exception) { null }
+
+    suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
+        val queryName = if (!originName.isNullOrEmpty()) originName else name
+        if (queryName.isNullOrEmpty() || year == null) return null
+        val tmdbType = if (isSeries) "tv" else "movie"
+        val encoded = java.net.URLEncoder.encode(queryName, "UTF-8")
+        return try {
+            app.get("$TMDB_BASE/search/$tmdbType?api_key=$TMDB_API_KEY&query=$encoded&language=vi-VN")
+                .parsedSafe<TmdbSearchResponse>()
+                ?.results?.firstOrNull { result ->
+                    val rawDate = if (isSeries) result.firstAirDate else result.releaseDate
+                    val tmdbYear = rawDate?.take(4)?.toIntOrNull()
+                    tmdbYear != null && kotlin.math.abs(tmdbYear - year) <= 1
+                }?.id?.toString()
+        } catch (e: Exception) { null }
+    }
     // Nên được nạp từ GitHub Secret qua YAML khi build
 
 
@@ -95,3 +154,63 @@ data class OPEpisode(
     @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
 
+// ── TMDB Data Classes ─────────────────────────────────────────────────────────
+
+data class TmdbCreditsResponse(
+    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
+)
+
+data class TmdbCast(
+    @param:JsonProperty("name")         val name: String?,
+    @param:JsonProperty("character")    val character: String?,
+    @param:JsonProperty("profile_path") val profile_path: String?
+)
+
+data class TmdbDetailResponse(
+    @param:JsonProperty("vote_average")  val vote_average: Double?,
+    @param:JsonProperty("poster_path")   val poster_path: String?,
+    @param:JsonProperty("backdrop_path") val backdrop_path: String?,
+    @param:JsonProperty("overview")      val overview: String?,
+    @param:JsonProperty("original_name") val original_name: String?,
+    @param:JsonProperty("original_title")val original_title: String?,
+    @param:JsonProperty("images")        val images: TmdbImagesResponse? = null,
+    @param:JsonProperty("credits")       val credits: TmdbCreditsResponse? = null
+)
+
+data class TmdbSeasonResponse(
+    @param:JsonProperty("episodes") val episodes: List<TmdbEpisode>?
+)
+
+data class TmdbEpisode(
+    @param:JsonProperty("episode_number") val episode_number: Int?,
+    @param:JsonProperty("runtime")        val runtime: Int?,
+    @param:JsonProperty("name")           val name: String?,
+    @param:JsonProperty("overview")       val overview: String?,
+    @param:JsonProperty("still_path")     val still_path: String?,
+    @param:JsonProperty("air_date")       val air_date: String?,
+    @param:JsonProperty("vote_average")   val vote_average: Double?
+)
+
+data class TmdbImagesResponse(
+    @param:JsonProperty("backdrops") val backdrops: List<TmdbImage>? = null,
+    @param:JsonProperty("posters")   val posters: List<TmdbImage>? = null
+)
+
+data class TmdbImage(
+    @param:JsonProperty("file_path")    val filePath: String? = null,
+    @param:JsonProperty("width")        val width: Int? = null,
+    @param:JsonProperty("height")       val height: Int? = null,
+    @param:JsonProperty("vote_average") val voteAverage: Double? = null
+)
+
+data class TmdbSearchResponse(
+    @param:JsonProperty("results") val results: List<TmdbSearchResult>? = null
+)
+
+data class TmdbSearchResult(
+    @param:JsonProperty("id")             val id: Int?,
+    @param:JsonProperty("name")           val name: String?,
+    @param:JsonProperty("first_air_date") val firstAirDate: String?,
+    @param:JsonProperty("title")          val title: String?,
+    @param:JsonProperty("release_date")   val releaseDate: String?
+)
