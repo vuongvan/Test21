@@ -159,7 +159,7 @@ class OPExProvider : MainAPI() {
         // — cả 2 không phụ thuộc nhau, chạy ngay lập tức
         val tmdbIdDeferred = async {
             movie.tmdb?.id?.takeIf { it.isNotEmpty() }
-                ?: OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+                ?: TmdbUtils.findId(movie.name, movie.origin_name, movie.year, isSeries)
         }
         val recsDeferred = async {
             if (!useRecommendations) return@async emptyList<SearchResponse>()
@@ -175,14 +175,14 @@ class OPExProvider : MainAPI() {
         val tmdbId = tmdbIdDeferred.await()
 
         // Phase 2: TMDB calls + MAL ID thực sự song song ngay sau khi có tmdbId
-        val detailsDeferred    = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
+        val detailsDeferred    = async { tmdbId?.let { TmdbUtils.fetchDetails(tmdbType, it) } }
         val seasonDeferred     = async {
-            if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
+            if (tmdbId != null && isSeries) TmdbUtils.fetchSeason(tmdbId, seasonNumber) else null
         }
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val tmdbDetails         = detailsDeferred.await()
-        val actorsList          = OPExUtils.parseCast(tmdbDetails?.credits, castCount)
+        val actorsList          = TmdbUtils.parseCast(tmdbDetails?.credits, castCount)
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 
@@ -194,16 +194,12 @@ class OPExProvider : MainAPI() {
         val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
         val posterUrl = if (useTmdbPoster)
-            tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
+            tmdbDetails?.poster_path?.let { "${TmdbUtils.IMG_500}$it" }
                 ?: "$cdn/uploads/movies/${movie.thumb_url}"
         else "$cdn/uploads/movies/${movie.thumb_url}"
 
         val finalBackdropUrl = if (useTmdbBackdrop)
-            tmdbDetails?.images?.backdrops
-                ?.mapNotNull { it.filePath?.let { p -> "https://image.tmdb.org/t/p/w1280$p" } }
-                ?.randomOrNull()
-                ?: tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                ?: "$cdn/uploads/movies/${movie.poster_url}"
+            TmdbUtils.pickBackdrop(tmdbDetails, "$cdn/uploads/movies/${movie.poster_url}")
         else "$cdn/uploads/movies/${movie.poster_url}"
 
         // Build meta tags
@@ -328,7 +324,7 @@ class OPExProvider : MainAPI() {
                 this.name = tmdbEp?.name
                     ?: if (data.first.contains("Tập", ignoreCase = true)) data.first else "Tập ${data.first}"
                 this.episode = num
-                this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
+                this.posterUrl = tmdbEp?.still_path?.let { "${TmdbUtils.IMG_500}$it" }
                 this.description = tmdbEp?.overview
                 this.runTime = tmdbEp?.runtime
                 val rating = tmdbEp?.vote_average
