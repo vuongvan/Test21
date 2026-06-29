@@ -194,16 +194,16 @@ class OPExProvider : MainAPI() {
         val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
         val posterUrl = if (useTmdbPoster)
-            tmdbDetails?.poster_path?.let { "${OPExUtils.TMDB_IMG_500}$it" }
+            tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 ?: "$cdn/uploads/movies/${movie.thumb_url}"
         else "$cdn/uploads/movies/${movie.thumb_url}"
 
         val finalBackdropUrl = if (useTmdbBackdrop)
-tmdbDetails?.images?.backdrops
-            ?.mapNotNull { it.filePath?.let { p -> "${OPExUtils.TMDB_IMG_1280}$p" } }
-            ?.randomOrNull()
-            ?: tmdbDetails?.backdrop_path?.let { "${OPExUtils.TMDB_IMG_1280}$it" }
-            ?: "$cdn/uploads/movies/${movie.poster_url}"
+            tmdbDetails?.images?.backdrops
+                ?.mapNotNull { it.filePath?.let { p -> "https://image.tmdb.org/t/p/w1280$p" } }
+                ?.randomOrNull()
+                ?: tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                ?: "$cdn/uploads/movies/${movie.poster_url}"
         else "$cdn/uploads/movies/${movie.poster_url}"
 
         // Build meta tags
@@ -328,7 +328,7 @@ tmdbDetails?.images?.backdrops
                 this.name = tmdbEp?.name
                     ?: if (data.first.contains("Tập", ignoreCase = true)) data.first else "Tập ${data.first}"
                 this.episode = num
-                this.posterUrl = tmdbEp?.still_path?.let { "${OPExUtils.TMDB_IMG_500}$it" }
+                this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
                 this.runTime = tmdbEp?.runtime
                 val rating = tmdbEp?.vote_average
