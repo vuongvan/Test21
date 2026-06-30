@@ -71,18 +71,27 @@ object OPExUtils {
         tmdbId: String?,
         epNum: Int?,
         season: Int?,
-        isSeries: Boolean
+        isSeries: Boolean,
+        preferTmdb: Boolean = false
     ): List<OpenSubFile> {
         if (imdbId.isNullOrEmpty() && tmdbId.isNullOrEmpty()) return emptyList()
         return try {
             val params = buildString {
-                imdbId?.let { append("imdb_id=${it.removePrefix("tt")}&") }
-                    ?: tmdbId?.let { append("tmdb_id=$it&") }
+                // Mặc định ưu tiên IMDB (coverage tốt hơn trên OpenSubtitles)
+                // preferTmdb = true → thử TMDB trước, fallback IMDB nếu không có
+                val useTmdbFirst = preferTmdb && !tmdbId.isNullOrEmpty()
+                if (useTmdbFirst) {
+                    append("tmdb_id=$tmdbId&")
+                } else if (!imdbId.isNullOrEmpty()) {
+                    append("imdb_id=${imdbId.removePrefix("tt")}&")
+                } else if (!tmdbId.isNullOrEmpty()) {
+                    append("tmdb_id=$tmdbId&")
+                }
                 if (isSeries) {
                     epNum?.let { append("episode_number=$it&") }
                     season?.let { append("season_number=$it&") }
                 }
-                append("languages=vi,en&per_page=5&order_by=ratings")
+                append("languages=vi,en&per_page=10&order_by=download_count")
             }
             val headers = mapOf(
                 "Api-Key"    to OPENSUB_API_KEY,
