@@ -191,8 +191,8 @@ class OPExProvider : MainAPI() {
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
         // imdbId từ ophim (có sẵn nếu API trả về), tmdbId từ resolve ở trên — KHÔNG được đổi chỗ cho nhau
         val imdbId       = movie.imdb?.id  // "tt7263328" hoặc null nếu ophim không trả về
-        val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason, imdbId, tmdbId, seasonNumber)
-        val dubEpisodes  = mergeEpisodesFromMap(dubEpsMap, tmdbSeason, imdbId, tmdbId, seasonNumber)
+        val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason, imdbId, tmdbId, if (isSeries) seasonNumber else null)
+        val dubEpisodes  = mergeEpisodesFromMap(dubEpsMap, tmdbSeason, imdbId, tmdbId, if (isSeries) seasonNumber else null)
         // fallback cho phim thường: dùng sub, nếu ko có thì dub
         val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
@@ -236,7 +236,7 @@ class OPExProvider : MainAPI() {
 
         return@coroutineScope when {
             // Anime movie (hoathinh + 1 tập) → Movie
-            isAnime && !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, (episodeList.firstOrNull()?.data ?: "") + "##${imdbId ?: ""}|${tmdbId ?: ""}||") {
+            isAnime && !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -263,7 +263,7 @@ class OPExProvider : MainAPI() {
                 addTMDbId(tmdbId)
             }
             // Phim lẻ
-            !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, (episodeList.firstOrNull()?.data ?: "") + "##${imdbId ?: ""}|${tmdbId ?: ""}||") {
+            !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
