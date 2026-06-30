@@ -96,6 +96,7 @@ class SettingsFragment(
 
         // ── Section: TMDB Features ───────────────────────────────────────────
         layout.addView(sectionHeader("🎬 TMDB"))
+        val swUseTmdb = switchRow("Sử dụng TMDB (tắt sẽ bỏ qua toàn bộ)", OPExProvider.PREF_USE_TMDB, true)
         val swPoster      = switchRow("Dùng poster từ TMDB",      OPExProvider.PREF_USE_TMDB_POSTER,     true)
         val swBackdrop    = switchRow("Dùng backdrop từ TMDB",    OPExProvider.PREF_USE_TMDB_BACKDROP,   true)
         val swPlot        = switchRow("Dùng nội dung từ TMDB",    OPExProvider.PREF_USE_TMDB_PLOT,       true)
@@ -174,6 +175,7 @@ class SettingsFragment(
                 val castVal = castCountEdit.text.toString().toIntOrNull()?.coerceIn(1, 30) ?: 15
                 sharedPref.edit().apply {
                     putString(OPExProvider.PREF_DOMAIN, domainEdit.text.toString().trim())
+                    putBoolean(OPExProvider.PREF_USE_TMDB,             swUseTmdb.isChecked)
                     putBoolean(OPExProvider.PREF_USE_TMDB_POSTER,      swPoster.isChecked)
                     putBoolean(OPExProvider.PREF_USE_TMDB_BACKDROP,    swBackdrop.isChecked)
                     putBoolean(OPExProvider.PREF_USE_TMDB_PLOT,        swPlot.isChecked)
@@ -204,6 +206,7 @@ class SettingsFragment(
             setOnClickListener {
                 sharedPref.edit().clear().apply()
                 domainEdit.setText(OPExProvider().mainUrl)
+                swUseTmdb.isChecked     = true
                 swPoster.isChecked      = true
                 swBackdrop.isChecked    = true
                 swPlot.isChecked        = true

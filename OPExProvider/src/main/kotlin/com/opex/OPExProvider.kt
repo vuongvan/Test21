@@ -33,6 +33,7 @@ class OPExProvider : MainAPI() {
 
         // Feature toggles
         const val PREF_USE_TMDB_BACKDROP  = "use_tmdb_backdrop"   // default: true
+        const val PREF_USE_TMDB           = "use_tmdb"            // default: true — tắt toàn bộ TMDB
         const val PREF_USE_TMDB_POSTER    = "use_tmdb_poster"     // default: true
         const val PREF_USE_RECOMMENDATIONS= "use_recommendations"  // default: true
         const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
@@ -144,6 +145,7 @@ class OPExProvider : MainAPI() {
         val cdn = data.APP_DOMAIN_CDN_IMAGE
         val prefs = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val useTmdbBackdrop   = prefs.getBoolean(PREF_USE_TMDB_BACKDROP, true)
+        val useTmdb           = prefs.getBoolean(PREF_USE_TMDB, true)
         val useTmdbPoster     = prefs.getBoolean(PREF_USE_TMDB_POSTER, true)
         val useRecommendations= prefs.getBoolean(PREF_USE_RECOMMENDATIONS, true)
         val useTmdbPlot       = prefs.getBoolean(PREF_USE_TMDB_PLOT, true)
@@ -159,6 +161,7 @@ class OPExProvider : MainAPI() {
         // Phase 1 (song song): resolve tmdbId + fetch recommendations
         // — cả 2 không phụ thuộc nhau, chạy ngay lập tức
         val tmdbIdDeferred = async {
+            if (!useTmdb) return@async null
             movie.tmdb?.id?.takeIf { it.isNotEmpty() }
                 ?: OPExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
         }
@@ -175,23 +178,23 @@ class OPExProvider : MainAPI() {
         // Chỉ await tmdbId khi cần để launch 4 TMDB calls — recsDeferred vẫn chạy nền
         val tmdbId = tmdbIdDeferred.await()
 
-        // Phase 2: TMDB calls + MAL ID thực sự song song ngay sau khi có tmdbId
-        val detailsDeferred    = async { tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } }
+        // Phase 2: TMDB calls — bỏ qua hoàn toàn nếu useTmdb = false
+        val detailsDeferred    = async { if (useTmdb) tmdbId?.let { OPExUtils.fetchTmdbDetails(tmdbType, it) } else null }
         val seasonDeferred     = async {
-            if (tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
+            if (useTmdb && tmdbId != null && isSeries) OPExUtils.fetchTmdbSeason(tmdbId, seasonNumber) else null
         }
 
         // Await tất cả — recsDeferred đã chạy song song từ Phase 1 nên thường đã xong
         val tmdbDetails         = detailsDeferred.await()
-        val actorsList          = OPExUtils.parseCast(tmdbDetails?.credits, castCount)
+        val actorsList          = if (useTmdb) OPExUtils.parseCast(tmdbDetails?.credits, castCount) else null
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 
-
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
-        val imdbId    = movie.imdb?.id  // "tt0131479"
-        val subEpisodes = mergeEpisodesFromMap(subEpsMap, tmdbSeason, imdbId, tmdbId, seasonNumber)
-        val dubEpisodes = mergeEpisodesFromMap(dubEpsMap, tmdbSeason, imdbId, tmdbId, seasonNumber)
+        // imdbId từ ophim (có sẵn nếu API trả về), tmdbId từ resolve ở trên — KHÔNG được đổi chỗ cho nhau
+        val imdbId       = movie.imdb?.id  // "tt7263328" hoặc null nếu ophim không trả về
+        val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason, imdbId, tmdbId, seasonNumber)
+        val dubEpisodes  = mergeEpisodesFromMap(dubEpsMap, tmdbSeason, imdbId, tmdbId, seasonNumber)
         // fallback cho phim thường: dùng sub, nếu ko có thì dub
         val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
@@ -361,7 +364,8 @@ class OPExProvider : MainAPI() {
         val tmdbId = metaPart?.getOrNull(1)?.takeIf { it.isNotEmpty() }
         val season = metaPart?.getOrNull(2)?.toIntOrNull()
         val epNum  = metaPart?.getOrNull(3)?.toIntOrNull()
-        val isSeries = season != null || epNum != null
+        // Movie: season rỗng → isSeries = false
+        val isSeries = season != null
 
         // Fetch video links
         linksPart.split(",").forEach { info ->
