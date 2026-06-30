@@ -62,7 +62,7 @@ object OPExUtils {
 
 
     // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
-    private const val OPENSUB_API_KEY = "YOUR_OPENSUB_API_KEY"
+    private const val OPENSUB_API_KEY = "bbywNSeRYsMTrgeLQ9M1O0BSLtjuly4D"
     private const val OPENSUB_BASE    = "https://api.opensubtitles.com/api/v1"
     private const val OPENSUB_UA      = "OPExPlugin v1.0"
 
