@@ -18,26 +18,23 @@ import android.content.Context
 
 class KKPExProvider : MainAPI() {
     companion object {
-        // [FIX 3] ctx nullable để tránh crash UninitializedPropertyAccessException
         var ctx: Context? = null
 
         const val PREFS_NAME = "kkpex_provider_prefs"
         const val PREF_DOMAIN = "domain"
-        const val PREF_CATEGORY_1 = "category_1"
-        const val PREF_CATEGORY_2 = "category_2"
-        const val PREF_CATEGORY_3 = "category_3"
-        const val PREF_CATEGORY_4 = "category_4"
-        const val PREF_CATEGORY_5 = "category_5"
-        const val PREF_CATEGORY_6 = "category_6"
-        const val PREF_CATEGORY_1_NAME = "category_1_name"
-        const val PREF_CATEGORY_2_NAME = "category_2_name"
-        const val PREF_CATEGORY_3_NAME = "category_3_name"
-        const val PREF_CATEGORY_4_NAME = "category_4_name"
-        const val PREF_CATEGORY_5_NAME = "category_5_name"
-        const val PREF_CATEGORY_6_NAME = "category_6_name"
         const val DEFAULT_URL = "https://phimapi.com"
 
-        // [FIX 2] Compile Regex một lần duy nhất, tái sử dụng mọi lần gọi load()
+        // Toggle TMDB features — cho phép user bật/tắt từng phần
+        const val PREF_USE_TMDB_POSTER     = "use_tmdb_poster"
+        const val PREF_USE_TMDB_BACKDROP   = "use_tmdb_backdrop"
+        const val PREF_USE_TMDB_PLOT       = "use_tmdb_plot"
+        const val PREF_USE_RECOMMENDATIONS = "use_recommendations"
+        const val PREF_CAST_COUNT          = "cast_count"
+
+        // Category keys — dùng helper function thay vì 12 const riêng lẻ
+        fun getPreferenceKey(index: Int) = "category_$index"
+        fun getPreferenceNameKey(index: Int) = "category_${index}_name"
+
         private val EP_NUM_REGEX = Regex("""(\d+)""")
     }
 
@@ -85,20 +82,17 @@ class KKPExProvider : MainAPI() {
     }
 
     private fun getCustomCategories(page: Int): List<Pair<String, String>> {
-        // [FIX 3] Dùng ctx nullable, trả về rỗng nếu chưa init thay vì crash
         val prefs = ctx?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             ?: return emptyList()
 
-        val pathKeys     = listOf(PREF_CATEGORY_1, PREF_CATEGORY_2, PREF_CATEGORY_3, PREF_CATEGORY_4, PREF_CATEGORY_5, PREF_CATEGORY_6)
-        val nameKeys     = listOf(PREF_CATEGORY_1_NAME, PREF_CATEGORY_2_NAME, PREF_CATEGORY_3_NAME, PREF_CATEGORY_4_NAME, PREF_CATEGORY_5_NAME, PREF_CATEGORY_6_NAME)
         val defaultPaths = listOf("danh-sach/phim-moi-cap-nhat-v3", "v1/api/quoc-gia/trung-quoc", "v1/api/quoc-gia/han-quoc", "v1/api/danh-sach/hoat-hinh", "", "")
         val defaultNames = listOf("Mới Cập Nhật", "Phim Trung Quốc", "Phim Hàn Quốc", "Phim Hoạt Hình", "Danh Sách 5", "Danh Sách 6")
 
         return buildList {
             for (i in 0 until 6) {
-                val categoryPath = prefs.getString(pathKeys[i], defaultPaths[i]).orEmpty()
+                val categoryPath = prefs.getString(getPreferenceKey(i + 1), defaultPaths[i]).orEmpty()
                 if (categoryPath.isEmpty()) continue
-                val categoryName = prefs.getString(nameKeys[i], defaultNames[i]) ?: defaultNames[i]
+                val categoryName = prefs.getString(getPreferenceNameKey(i + 1), defaultNames[i]) ?: defaultNames[i]
                 val baseUrl = if (categoryPath.startsWith("http")) categoryPath else "$mainUrl/$categoryPath"
                 val finalUrl = if (baseUrl.contains("?")) "$baseUrl&page=$page" else "$baseUrl?page=$page"
                 add(Pair(finalUrl, categoryName))
@@ -122,6 +116,13 @@ class KKPExProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
+        val prefs = ctx?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val useTmdbPoster    = prefs?.getBoolean(PREF_USE_TMDB_POSTER, true) ?: true
+        val useTmdbBackdrop  = prefs?.getBoolean(PREF_USE_TMDB_BACKDROP, true) ?: true
+        val useTmdbPlot      = prefs?.getBoolean(PREF_USE_TMDB_PLOT, true) ?: true
+        val useRecommendations = prefs?.getBoolean(PREF_USE_RECOMMENDATIONS, true) ?: true
+        val castCount        = prefs?.getInt(PREF_CAST_COUNT, 15)?.coerceIn(1, 30) ?: 15
+
         val response = app.get(url).text
         val res = parseJson<KKDetailResponse>(response)
         val movie = res.movie ?: return null
@@ -165,9 +166,9 @@ class KKPExProvider : MainAPI() {
                     ?: KKExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
             }
 
-            // Rec launch song song ngay, không cần chờ tmdbId
+            // Rec launch song song ngay, không cần chờ tmdbId (trừ khi user tắt tính năng)
             val recDeferred = async {
-                if (countrySlug.isNotEmpty()) {
+                if (useRecommendations && countrySlug.isNotEmpty()) {
                     val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=16&category=$categorySlugs&sort_field=year&sort_type=desc"
                     getListFromUrl(recUrl)
                 } else emptyList()
@@ -180,7 +181,7 @@ class KKPExProvider : MainAPI() {
             if (!resolvedTmdbId.isNullOrEmpty()) {
                 // Launch bundle + await() — rec vẫn đang chạy song song trong nền
                 if (isSeries) {
-                    val bundle = KKExUtils.fetchTmdbSeriesBundle(resolvedTmdbId, finalSeasonNum)
+                    val bundle = KKExUtils.fetchTmdbSeriesBundle(resolvedTmdbId, finalSeasonNum, castCount)
                     tmdbActors    = bundle.cast
                     tmdbDetails   = bundle.details
                     tmdbBackdrops = bundle.backdrops
@@ -188,7 +189,7 @@ class KKPExProvider : MainAPI() {
                         ep.episodeNumber?.let { tmdbEpisodesMap[it] = ep }
                     }
                 } else {
-                    val bundle = KKExUtils.fetchTmdbBundle(tmdbType, resolvedTmdbId)
+                    val bundle = KKExUtils.fetchTmdbBundle(tmdbType, resolvedTmdbId, castCount)
                     tmdbActors    = bundle.cast
                     tmdbDetails   = bundle.details
                     tmdbBackdrops = bundle.backdrops
@@ -274,7 +275,11 @@ class KKPExProvider : MainAPI() {
             movie.category?.forEach { cat -> cat.name?.let { add(it) } }
         }
 
-        val fullPlot = movie.content ?: "Không có nội dung mô tả."
+        val fullPlot = if (useTmdbPlot) {
+            tmdbDetails?.overview?.takeIf { it.isNotEmpty() } ?: movie.content ?: "Không có nội dung mô tả."
+        } else {
+            movie.content ?: "Không có nội dung mô tả."
+        }
 
         val finalActors = tmdbActors
             ?: movie.actor?.map { ActorData(Actor(it, null), roleString = "Diễn viên") }
@@ -282,14 +287,20 @@ class KKPExProvider : MainAPI() {
 
         val finalRating = tmdbDetails?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
 
-        val posterUrl = tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
-            ?: movie.poster_url
-
-        val finalBackdropUrl = if (tmdbBackdrops.isNotEmpty()) {
-            tmdbBackdrops.random()
+        val posterUrl = if (useTmdbPoster) {
+            tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } ?: movie.poster_url
         } else {
-            tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
-                ?: movie.thumb_url
+            movie.poster_url
+        }
+
+        val finalBackdropUrl = if (useTmdbBackdrop) {
+            if (tmdbBackdrops.isNotEmpty()) {
+                tmdbBackdrops.random()
+            } else {
+                tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" } ?: movie.thumb_url
+            }
+        } else {
+            movie.thumb_url
         }
 
         // isDub/isSub đã được xác định chính xác qua việc tách server bên trên

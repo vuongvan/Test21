@@ -21,11 +21,11 @@ object KKExUtils {
         return if (url.startsWith("http")) url else "https://phimimg.com/$url"
     }
 
-    suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String): List<ActorData>? {
+    suspend fun fetchTmdbCast(tmdbType: String, tmdbId: String, castCount: Int = 15): List<ActorData>? {
         val url = "https://api.themoviedb.org/3/$tmdbType/$tmdbId/credits?api_key=$tmdbApiKey&language=vi-VN"
         return try {
             val res = app.get(url).parsedSafe<TmdbCreditsResponse>()
-            res?.cast?.take(15)?.map { cast ->
+            res?.cast?.take(castCount)?.map { cast ->
                 val actorImg = cast.profile_path?.let { "https://image.tmdb.org/t/p/w185$it" }
                 ActorData(Actor(cast.name ?: "", actorImg), roleString = cast.character)
             }
@@ -80,9 +80,9 @@ object KKExUtils {
         val backdrops: List<String>
     )
 
-    suspend fun fetchTmdbBundle(tmdbType: String, tmdbId: String): TmdbBundle = coroutineScope {
+    suspend fun fetchTmdbBundle(tmdbType: String, tmdbId: String, castCount: Int = 15): TmdbBundle = coroutineScope {
         // Launch tất cả song song, await riêng từng cái — type-safe hơn awaitAll với mixed types
-        val castDeferred     = async { fetchTmdbCast(tmdbType, tmdbId) }
+        val castDeferred     = async { fetchTmdbCast(tmdbType, tmdbId, castCount) }
         val detailsDeferred  = async { fetchTmdbDetails(tmdbType, tmdbId) }
         val backdropDeferred = async { fetchTmdbBackdrops(tmdbType, tmdbId) }
         TmdbBundle(
@@ -102,9 +102,9 @@ object KKExUtils {
         val season: TmdbSeasonResponse?
     )
 
-    suspend fun fetchTmdbSeriesBundle(tmdbId: String, seasonNumber: Int): TmdbSeriesBundle = coroutineScope {
+    suspend fun fetchTmdbSeriesBundle(tmdbId: String, seasonNumber: Int, castCount: Int = 15): TmdbSeriesBundle = coroutineScope {
         // Launch tất cả song song, await riêng từng cái — type-safe hơn awaitAll với mixed types
-        val castDeferred     = async { fetchTmdbCast("tv", tmdbId) }
+        val castDeferred     = async { fetchTmdbCast("tv", tmdbId, castCount) }
         val detailsDeferred  = async { fetchTmdbDetails("tv", tmdbId) }
         val backdropDeferred = async { fetchTmdbBackdrops("tv", tmdbId) }
         val seasonDeferred   = async { fetchTmdbSeason(tmdbId, seasonNumber) }
