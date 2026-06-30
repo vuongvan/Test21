@@ -2,8 +2,6 @@ package com.opex
 
 import com.lagradost.cloudstream3.*
 import kotlinx.coroutines.async
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.MediaType.Companion.toMediaType
 import kotlinx.coroutines.coroutineScope
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
@@ -62,63 +60,6 @@ object OPExUtils {
 
 
     // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
-    private const val OPENSUB_API_KEY = "bbywNSeRYsMTrgeLQ9M1O0BSLtjuly4D"
-    private const val OPENSUB_BASE    = "https://api.opensubtitles.com/api/v1"
-    private const val OPENSUB_UA      = "OPExPlugin v1.0"
-
-    suspend fun fetchOpenSubtitles(
-        imdbId: String?,
-        tmdbId: String?,
-        epNum: Int?,
-        season: Int?,
-        isSeries: Boolean,
-        preferTmdb: Boolean = false
-    ): List<OpenSubFile> {
-        if (imdbId.isNullOrEmpty() && tmdbId.isNullOrEmpty()) return emptyList()
-        return try {
-            val params = buildString {
-                // Mặc định ưu tiên IMDB (coverage tốt hơn trên OpenSubtitles)
-                // preferTmdb = true → thử TMDB trước, fallback IMDB nếu không có
-                val useTmdbFirst = preferTmdb && !tmdbId.isNullOrEmpty()
-                if (useTmdbFirst) {
-                    append("tmdb_id=$tmdbId&")
-                } else if (!imdbId.isNullOrEmpty()) {
-                    append("imdb_id=${imdbId.removePrefix("tt")}&")
-                } else if (!tmdbId.isNullOrEmpty()) {
-                    append("tmdb_id=$tmdbId&")
-                }
-                if (isSeries) {
-                    epNum?.let { append("episode_number=$it&") }
-                    season?.let { append("season_number=$it&") }
-                }
-                append("languages=vi,en&per_page=10&order_by=download_count")
-            }
-            val headers = mapOf(
-                "Api-Key"    to OPENSUB_API_KEY,
-                "User-Agent" to OPENSUB_UA
-            )
-            app.get("$OPENSUB_BASE/subtitles?$params", headers = headers)
-                .parsedSafe<OpenSubResponse>()
-                ?.data ?: emptyList()
-        } catch (e: Exception) { emptyList() }
-    }
-
-    suspend fun getOpenSubDownloadUrl(fileId: Int): String? {
-        return try {
-            val body = """{"file_id":$fileId}"""
-            val headers = mapOf(
-                "Api-Key"      to OPENSUB_API_KEY,
-                "User-Agent"   to OPENSUB_UA,
-                "Content-Type" to "application/json"
-            )
-            app.post(
-                "$OPENSUB_BASE/download",
-                headers     = headers,
-                requestBody = body.toRequestBody("application/json".toMediaType())
-            ).parsedSafe<OpenSubDownloadResponse>()?.link
-        } catch (e: Exception) { null }
-    }
-
     suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
@@ -276,32 +217,4 @@ data class TmdbSearchResult(
     @param:JsonProperty("first_air_date") val firstAirDate: String? = null,
     @param:JsonProperty("title") val title: String? = null,
     @param:JsonProperty("release_date") val releaseDate: String? = null
-)
-
-// ── OpenSubtitles Data Classes ────────────────────────────────────────────────
-
-data class OpenSubResponse(
-    @param:JsonProperty("data") val data: List<OpenSubFile>? = null
-)
-
-data class OpenSubFile(
-    @param:JsonProperty("id")         val id: String? = null,
-    @param:JsonProperty("attributes") val attributes: OpenSubAttributes? = null
-)
-
-data class OpenSubAttributes(
-    @param:JsonProperty("language")         val language: String? = null,
-    @param:JsonProperty("release")          val release: String? = null,
-    @param:JsonProperty("hearing_impaired") val hearingImpaired: Boolean? = null,
-    @param:JsonProperty("files")            val files: List<OpenSubFileItem>? = null
-)
-
-data class OpenSubFileItem(
-    @param:JsonProperty("file_id")   val fileId: Int? = null,
-    @param:JsonProperty("file_name") val fileName: String? = null
-)
-
-data class OpenSubDownloadResponse(
-    @param:JsonProperty("link")      val link: String? = null,
-    @param:JsonProperty("remaining") val remaining: Int? = null
 )

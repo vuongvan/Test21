@@ -5,7 +5,6 @@ import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.Score
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
@@ -38,8 +37,6 @@ class OPExProvider : MainAPI() {
         const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
         const val PREF_CAST_COUNT         = "cast_count"          // default: 15
         const val PREF_TRAILER_COUNT      = "filter_trailer"      // default: true (lọc trailer)
-        const val PREF_USE_OPENSUB        = "use_opensub"          // default: true
-        const val PREF_OPENSUB_PREFER_TMDB= "opensub_prefer_tmdb"  // default: false — ưu tiên IMDB trước
 
         private val DEFAULT_PATHS = listOf(
             "v1/api/danh-sach/phim-moi-cap-nhat",
@@ -189,10 +186,8 @@ class OPExProvider : MainAPI() {
         val recommendationsList = recsDeferred.await()
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
-        // imdbId từ ophim (có sẵn nếu API trả về), tmdbId từ resolve ở trên — KHÔNG được đổi chỗ cho nhau
-        val imdbId       = movie.imdb?.id  // "tt7263328" hoặc null nếu ophim không trả về
-        val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason, imdbId, tmdbId, if (isSeries) seasonNumber else null)
-        val dubEpisodes  = mergeEpisodesFromMap(dubEpsMap, tmdbSeason, imdbId, tmdbId, if (isSeries) seasonNumber else null)
+        val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
+        val dubEpisodes  = mergeEpisodesFromMap(dubEpsMap, tmdbSeason)
         // fallback cho phim thường: dùng sub, nếu ko có thì dub
         val episodeList = subEpisodes.ifEmpty { dubEpisodes }
 
@@ -245,7 +240,6 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                addTMDbId(tmdbId)
             }
             // Anime series (hoathinh + nhiều tập)
             isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
@@ -260,7 +254,6 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
-                addTMDbId(tmdbId)
             }
             // Phim lẻ
             !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
@@ -272,7 +265,6 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
-                addTMDbId(tmdbId)
             }
             // Series thường
             else -> newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
@@ -285,7 +277,6 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
-                addTMDbId(tmdbId)
             }
         }
     }
@@ -320,20 +311,14 @@ class OPExProvider : MainAPI() {
     }
 
     // Phase 2 (sync): merge 1 map với TMDB season data
-    // data string format: "link1|server1,link2|server2##imdbId|tmdbId|season|epNum"
     private fun mergeEpisodesFromMap(
         epsMap: Map<Int, Pair<String, MutableList<String>>>,
-        tmdbSeason: TmdbSeasonResponse?,
-        imdbId: String? = null,
-        tmdbId: String? = null,
-        season: Int? = null
+        tmdbSeason: TmdbSeasonResponse?
     ): List<Episode> {
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
         return epsMap.map { (num, data) ->
             val tmdbEp = tmdbEpsMap?.get(num)
-            // Nhúng meta vào cuối data để loadLinks biết tìm phụ đề nào
-            val meta = "##${imdbId ?: ""}|${tmdbId ?: ""}|${season ?: ""}|$num"
-            newEpisode(data.second.joinToString(",") + meta) {
+            newEpisode(data.second.joinToString(",")) {
                 this.name = tmdbEp?.name
                     ?: if (data.first.contains("Tập", ignoreCase = true)) data.first else "Tập ${data.first}"
                 this.episode = num
@@ -353,50 +338,12 @@ class OPExProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // Parse: "link1|server1,link2|server2##imdbId|tmdbId|season|epNum"
-        val parts     = data.split("##")
-        val linksPart = parts[0]
-        val metaPart  = parts.getOrNull(1)?.split("|")
-
-        val imdbId = metaPart?.getOrNull(0)?.takeIf { it.isNotEmpty() }
-        val tmdbId = metaPart?.getOrNull(1)?.takeIf { it.isNotEmpty() }
-        val season = metaPart?.getOrNull(2)?.toIntOrNull()
-        val epNum  = metaPart?.getOrNull(3)?.toIntOrNull()
-        // Movie: season rỗng → isSeries = false
-        val isSeries = season != null
-
-        // Fetch video links
-        linksPart.split(",").forEach { info ->
-            val p = info.split("|")
-            val link = p.getOrNull(0) ?: return@forEach
-            val serverName = p.getOrNull(1) ?: "OPhim"
+        data.split(",").forEach { info ->
+            val parts = info.split("|")
+            val link = parts.getOrNull(0) ?: return@forEach
+            val serverName = parts.getOrNull(1) ?: "OPhim"
             if (link.isNotEmpty()) callback(newExtractorLink(serverName, serverName, link, ExtractorLinkType.M3U8))
         }
-
-        // Fetch OpenSubtitles song song với video links
-        val prefs = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        val useOpenSub   = prefs.getBoolean(PREF_USE_OPENSUB, true)
-        val preferTmdb   = prefs.getBoolean(PREF_OPENSUB_PREFER_TMDB, false)
-        if (useOpenSub) {
-            val subs = OPExUtils.fetchOpenSubtitles(imdbId, tmdbId, epNum, season, isSeries, preferTmdb)
-            subs.forEach { subFile ->
-                val attrs   = subFile.attributes ?: return@forEach
-                val fileId  = attrs.files?.firstOrNull()?.fileId ?: return@forEach
-                val lang    = when (attrs.language?.lowercase()) {
-                    "vi"  -> "Vietnamese"
-                    "en"  -> "English"
-                    else  -> attrs.language ?: "Unknown"
-                }
-                val label   = buildString {
-                    append("[$lang]")
-                    attrs.release?.take(30)?.let { append(" $it") }
-                    if (attrs.hearingImpaired == true) append(" [HI]")
-                }
-                val url = OPExUtils.getOpenSubDownloadUrl(fileId) ?: return@forEach
-                subtitleCallback(SubtitleFile(lang, url))
-            }
-        }
-
         return true
     }
 

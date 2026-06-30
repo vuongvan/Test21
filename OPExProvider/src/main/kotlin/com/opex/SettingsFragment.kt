@@ -112,11 +112,6 @@ class SettingsFragment(
         }
         layout.addView(castCountEdit)
 
-        // ── Section: Filter ──────────────────────────────────────────────────
-        layout.addView(sectionHeader("📝 Phụ đề"))
-        val swOpenSub = switchRow("Lấy phụ đề từ OpenSubtitles", OPExProvider.PREF_USE_OPENSUB, true)
-        val swPreferTmdb = switchRow("Ưu tiên TMDB ID khi tìm phụ đề (mặc định IMDB)", OPExProvider.PREF_OPENSUB_PREFER_TMDB, false)
-
         layout.addView(sectionHeader("🔍 Lọc nội dung"))
         val swFilterTrailer = switchRow("Ẩn trailer khỏi danh sách", OPExProvider.PREF_TRAILER_COUNT, true)
 
@@ -180,8 +175,6 @@ class SettingsFragment(
                     putBoolean(OPExProvider.PREF_USE_TMDB_PLOT,        swPlot.isChecked)
                     putBoolean(OPExProvider.PREF_USE_RECOMMENDATIONS,  swRecs.isChecked)
                     putBoolean(OPExProvider.PREF_TRAILER_COUNT,        swFilterTrailer.isChecked)
-                    putBoolean(OPExProvider.PREF_USE_OPENSUB,          swOpenSub.isChecked)
-                    putBoolean(OPExProvider.PREF_OPENSUB_PREFER_TMDB,  swPreferTmdb.isChecked)
                     putInt(OPExProvider.PREF_CAST_COUNT, castVal)
                     // Parse "Tên|path" per line
                     val lines = categoryEdit.text.toString().lines()
@@ -211,7 +204,6 @@ class SettingsFragment(
                 swPlot.isChecked        = true
                 swRecs.isChecked        = true
                 swFilterTrailer.isChecked = true
-                swPreferTmdb.isChecked    = false
                 castCountEdit.setText("15")
                 categoryEdit.setText(
                     (0 until 6).joinToString("\n") { i -> "${defaultNames[i]}|${defaultPaths[i]}" }
