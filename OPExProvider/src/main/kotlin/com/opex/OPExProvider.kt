@@ -76,9 +76,10 @@ class OPExProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? =
         coroutineScope {
             val categories = getCustomCategories(page)
-            // Tất cả category fetch chạy song song — 6×700ms → ~700ms
+            val filterTrailer = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(PREF_TRAILER_COUNT, true)
             val homeItems = categories
-                .map { (url, catName) -> async { HomePageList(catName, getListFromUrl(url)) } }
+                .map { (url, catName) -> async { HomePageList(catName, getListFromUrl(url, filterTrailer)) } }
                 .awaitAll()
                 .filter { it.list.isNotEmpty() }
             newHomePageResponse(homeItems, hasNext = true)
@@ -99,13 +100,11 @@ class OPExProvider : MainAPI() {
         return result
     }
 
-    private suspend fun getListFromUrl(url: String): List<SearchResponse> {
+    private suspend fun getListFromUrl(url: String, filterTrailer: Boolean = true): List<SearchResponse> {
         return try {
             val data = parseJson<OPListResponse>(app.get(url, timeout = 15).text)
             val cdn = data.data?.APP_DOMAIN_CDN_IMAGE ?: data.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items
-            val filterTrailer = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                .getBoolean(PREF_TRAILER_COUNT, true)
             items
                 ?.filter { !filterTrailer || it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
@@ -230,19 +229,8 @@ class OPExProvider : MainAPI() {
             ShowStatus.Ongoing else ShowStatus.Completed
 
         return@coroutineScope when {
-            // Anime movie (hoathinh + 1 tập) → Movie
-            isAnime && !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
-                this.posterUrl = posterUrl
-                this.backgroundPosterUrl = finalBackdropUrl
-                this.recommendations = recommendationsList
-                this.plot = plotClean
-                this.year = movie.year
-                this.tags = metaTags
-                this.actors = actorsList
-                if (finalRating > 0) this.score = Score.from10(finalRating)
-            }
             // Anime series (hoathinh + nhiều tập)
-            isAnime -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
+            isAnime && isSeries -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
                 if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
                 if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
                 this.posterUrl = posterUrl
@@ -255,7 +243,7 @@ class OPExProvider : MainAPI() {
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
             }
-            // Phim lẻ
+            // Phim lẻ (bao gồm anime movie)
             !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl

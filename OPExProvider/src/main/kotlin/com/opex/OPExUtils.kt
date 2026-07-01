@@ -39,7 +39,7 @@ object OPExUtils {
 
     // Parse cast từ credits đã có trong TmdbDetailResponse — không cần call riêng
     fun parseCast(credits: TmdbCreditsResponse?, castCount: Int = 15): List<ActorData>? {
-        return credits?.cast?.take(15)?.map { cast ->
+        return credits?.cast?.take(castCount)?.map { cast ->
             ActorData(
                 Actor(cast.name ?: "", cast.profile_path?.let { "$TMDB_IMG_185$it" }),
                 roleString = cast.character
@@ -57,9 +57,6 @@ object OPExUtils {
     }
 
 
-
-
-    // Trả MAL ID để CS3 tracker tự fetch nhân vật anime với ảnh artwork
     suspend fun findTmdbId(name: String?, originName: String?, year: Int?, isSeries: Boolean): String? {
         val queryName = if (!originName.isNullOrEmpty()) originName else name
         if (queryName.isNullOrEmpty() || year == null) return null
@@ -117,11 +114,6 @@ data class OPTmdb(
 )
 
 data class OPImdbListItem(@param:JsonProperty("vote_average") val vote_average: Double? = null)
-data class OPImdbDetail(
-    @param:JsonProperty("id") val id: String? = null,
-    @param:JsonProperty("vote_average") val vote_average: Double? = null
-)
-
 data class OPRootResponse(@param:JsonProperty("data") val data: OPDataContent? = null)
 
 data class OPDataContent(
@@ -141,7 +133,7 @@ data class OPItemDetail(
     @param:JsonProperty("episode_total") val episode_total: String? = null,
     @param:JsonProperty("lang") val lang: String? = null,
     @param:JsonProperty("tmdb") val tmdb: OPTmdb? = null,
-    @param:JsonProperty("imdb") val imdb: OPImdbDetail? = null,
+    @param:JsonProperty("imdb") val imdb: OPImdbListItem? = null,
     @param:JsonProperty("country") val country: List<OPCountry>? = null,
     @param:JsonProperty("category") val category: List<OPCat>? = null,
     @param:JsonProperty("poster_url") val poster_url: String? = null,
@@ -169,8 +161,14 @@ data class OPEpisode(
     @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
 )
 
-data class TmdbCreditsResponse(val cast: List<TmdbCast>?)
-data class TmdbCast(val name: String?, val profile_path: String?, val character: String?)
+data class TmdbCreditsResponse(
+    @param:JsonProperty("cast") val cast: List<TmdbCast>? = null
+)
+data class TmdbCast(
+    @param:JsonProperty("name")         val name: String?,
+    @param:JsonProperty("profile_path") val profile_path: String?,
+    @param:JsonProperty("character")    val character: String?
+)
 
 data class TmdbDetailResponse(
     @param:JsonProperty("vote_average") val vote_average: Double?,
@@ -183,16 +181,18 @@ data class TmdbDetailResponse(
     @param:JsonProperty("credits") val credits: TmdbCreditsResponse? = null
 )
 
-data class TmdbSeasonResponse(val episodes: List<TmdbEpisode>?)
+data class TmdbSeasonResponse(
+    @param:JsonProperty("episodes") val episodes: List<TmdbEpisode>?
+)
 
 data class TmdbEpisode(
-    val episode_number: Int?,
-    val runtime: Int?,
-    val name: String?,
-    val overview: String?,
-    val still_path: String?,
-    val air_date: String?,
-    val vote_average: Double?
+    @param:JsonProperty("episode_number") val episode_number: Int?,
+    @param:JsonProperty("runtime")        val runtime: Int?,
+    @param:JsonProperty("name")           val name: String?,
+    @param:JsonProperty("overview")       val overview: String?,
+    @param:JsonProperty("still_path")     val still_path: String?,
+    @param:JsonProperty("air_date")       val air_date: String?,
+    @param:JsonProperty("vote_average")   val vote_average: Double?
 )
 
 data class TmdbImagesResponse(
