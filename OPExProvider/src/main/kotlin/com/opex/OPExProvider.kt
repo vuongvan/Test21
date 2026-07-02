@@ -8,15 +8,21 @@ import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 class OPExProvider : MainAPI() {
     companion object {
+        private const val TAG = "OPExProvider"
         lateinit var ctx: Context
         const val PREFS_NAME = "opex_provider_prefs"
         const val PREF_DOMAIN = "domain"
+        // Domain mặc định — dùng chung để tránh phải khởi tạo cả OPExProvider() chỉ để đọc mainUrl
+        const val DEFAULT_URL = "https://ophim1.com"
+        // Timeout (giây) dùng chung cho các network call
+        const val NETWORK_TIMEOUT = 15L
         const val PREF_CATEGORY_1 = "category_1"
         const val PREF_CATEGORY_2 = "category_2"
         const val PREF_CATEGORY_3 = "category_3"
@@ -36,7 +42,7 @@ class OPExProvider : MainAPI() {
         const val PREF_USE_RECOMMENDATIONS= "use_recommendations"  // default: true
         const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
         const val PREF_CAST_COUNT         = "cast_count"          // default: 15
-        const val PREF_TRAILER_COUNT      = "filter_trailer"      // default: true (lọc trailer)
+        const val PREF_FILTER_TRAILER     = "filter_trailer"      // default: true (lọc trailer) — boolean, không phải count
 
         private val DEFAULT_PATHS = listOf(
             "v1/api/danh-sach/phim-moi-cap-nhat",
@@ -66,7 +72,7 @@ class OPExProvider : MainAPI() {
         }
     }
 
-    override var mainUrl = "https://ophim1.com"
+    override var mainUrl = DEFAULT_URL
     override var name = "OPhim"
     override val hasMainPage = true
     override var lang = "vi"
@@ -77,7 +83,7 @@ class OPExProvider : MainAPI() {
         coroutineScope {
             val categories = getCustomCategories(page)
             val filterTrailer = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(PREF_TRAILER_COUNT, true)
+                .getBoolean(PREF_FILTER_TRAILER, true)
             val homeItems = categories
                 .map { (url, catName) -> async { HomePageList(catName, getListFromUrl(url, filterTrailer)) } }
                 .awaitAll()
@@ -102,7 +108,7 @@ class OPExProvider : MainAPI() {
 
     private suspend fun getListFromUrl(url: String, filterTrailer: Boolean = true): List<SearchResponse> {
         return try {
-            val data = parseJson<OPListResponse>(app.get(url, timeout = 15).text)
+            val data = parseJson<OPListResponse>(app.get(url, timeout = NETWORK_TIMEOUT).text)
             val cdn = data.data?.APP_DOMAIN_CDN_IMAGE ?: data.APP_DOMAIN_CDN_IMAGE
             val items = data.data?.items ?: data.items
             items
@@ -129,13 +135,19 @@ class OPExProvider : MainAPI() {
                     }
                 } ?: emptyList()
         } catch (e: Exception) {
+            Log.e(TAG, "getListFromUrl failed for $url", e)
             emptyList()
         }
     }
 
     override suspend fun load(url: String): LoadResponse? = coroutineScope {
         val slug = url.split("/").last()
-        val movieRoot = parseJson<OPRootResponse>(app.get("$mainUrl/v1/api/phim/$slug").text)
+        val movieRoot = try {
+            parseJson<OPRootResponse>(app.get("$mainUrl/v1/api/phim/$slug", timeout = NETWORK_TIMEOUT).text)
+        } catch (e: Exception) {
+            Log.e(TAG, "load: failed to fetch detail for $slug", e)
+            return@coroutineScope null
+        }
         val data = movieRoot.data ?: return@coroutineScope null
         val movie = data.item ?: return@coroutineScope null
         val cdn = data.APP_DOMAIN_CDN_IMAGE
@@ -285,14 +297,21 @@ class OPExProvider : MainAPI() {
              MutableMap<Int, Pair<String, MutableList<String>>>> {
         val subMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
         val dubMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
+        // Đếm ngược cho các tập không parse được số (tránh đè lên nhau tại key mặc định)
+        var fallbackNum = -1
         ophimServers?.forEach { server ->
             val sName = server.server_name ?: "Server"
             val targetMap = if (isDubServer(sName)) dubMap else subMap
             server.server_data?.forEach { ep ->
                 val epName = ep.name ?: ""
-                val epNum = EP_NUMBER_REGEX.find(epName)?.value?.toIntOrNull() ?: 1
                 val link = ep.link_m3u8 ?: return@forEach
-                targetMap.getOrPut(epNum) { epName to mutableListOf() }.second.add("$link|$sName")
+                val parsedNum = EP_NUMBER_REGEX.find(epName)?.value?.toIntOrNull()
+                if (parsedNum != null) {
+                    targetMap.getOrPut(parsedNum) { epName to mutableListOf() }.second.add("$link|$sName")
+                } else {
+                    // Không tìm được số tập -> gán key riêng biệt, không gộp nhầm các tập khác nhau
+                    targetMap[fallbackNum--] = epName to mutableListOf("$link|$sName")
+                }
             }
         }
         return subMap to dubMap
@@ -335,6 +354,9 @@ class OPExProvider : MainAPI() {
         return true
     }
 
-    override suspend fun search(query: String): List<SearchResponse> =
-        getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$query&limit=30")
+    override suspend fun search(query: String): List<SearchResponse> {
+        // Encode để tránh gãy URL với query có dấu cách / ký tự đặc biệt / tiếng Việt có dấu
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        return getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$encoded&limit=30")
+    }
 }

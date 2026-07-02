@@ -90,7 +90,7 @@ class SettingsFragment(
         val domainEdit = editRow(
             "https://ophim1.com",
             OPExProvider.PREF_DOMAIN,
-            OPExProvider().mainUrl,
+            OPExProvider.DEFAULT_URL,
             InputType.TYPE_TEXT_VARIATION_URI
         )
 
@@ -113,7 +113,7 @@ class SettingsFragment(
         layout.addView(castCountEdit)
 
         layout.addView(sectionHeader("🔍 Lọc nội dung"))
-        val swFilterTrailer = switchRow("Ẩn trailer khỏi danh sách", OPExProvider.PREF_TRAILER_COUNT, true)
+        val swFilterTrailer = switchRow("Ẩn trailer khỏi danh sách", OPExProvider.PREF_FILTER_TRAILER, true)
 
         // ── Section: Categories ──────────────────────────────────────────────
         layout.addView(sectionHeader("📋 Danh mục trang chủ"))
@@ -174,7 +174,7 @@ class SettingsFragment(
                     putBoolean(OPExProvider.PREF_USE_TMDB_BACKDROP,    swBackdrop.isChecked)
                     putBoolean(OPExProvider.PREF_USE_TMDB_PLOT,        swPlot.isChecked)
                     putBoolean(OPExProvider.PREF_USE_RECOMMENDATIONS,  swRecs.isChecked)
-                    putBoolean(OPExProvider.PREF_TRAILER_COUNT,        swFilterTrailer.isChecked)
+                    putBoolean(OPExProvider.PREF_FILTER_TRAILER,       swFilterTrailer.isChecked)
                     putInt(OPExProvider.PREF_CAST_COUNT, castVal)
                     // Parse "Tên|path" per line
                     val lines = categoryEdit.text.toString().lines()
@@ -198,7 +198,7 @@ class SettingsFragment(
             ).apply { topMargin = 8.dp() }
             setOnClickListener {
                 sharedPref.edit().clear().apply()
-                domainEdit.setText(OPExProvider().mainUrl)
+                domainEdit.setText(OPExProvider.DEFAULT_URL)
                 swPoster.isChecked      = true
                 swBackdrop.isChecked    = true
                 swPlot.isChecked        = true
