@@ -211,6 +211,8 @@ class KKPExProvider : MainAPI() {
         val subEpMap   = mutableMapOf<Int, MutableList<String>>()
         val dubEpMap   = mutableMapOf<Int, MutableList<String>>()
         val subEpNames = mutableMapOf<Int, String>()
+        // Fix 3: thu thập link_sub từ KKEpisode để truyền vào subtitleCallback
+        val subLinkMap = mutableMapOf<Int, String>()
 
         res.episodes?.forEach { server ->
             val serverName  = server.server_name ?: "HLS"
@@ -227,6 +229,7 @@ class KKPExProvider : MainAPI() {
                 } else {
                     subEpMap.getOrPut(epNum) { mutableListOf() }.add("$link::$serverName")
                     subEpNames[epNum] = epName
+                    ep.link_sub?.takeIf { it.isNotEmpty() }?.let { subLinkMap[epNum] = it }
                 }
             }
         }
@@ -237,11 +240,19 @@ class KKPExProvider : MainAPI() {
             dubEpMap.clear()
         }
 
+        val hasDub = dubEpMap.isNotEmpty()
+
+        // Fix 2: 1 hàm buildEpisodeList dùng chung — không build lại nhiều lần
+        // Với series có dub: truyền merged links (sub + dub) luôn từ đây
+        // Với anime có dub: truyền subEpMap hoặc dubEpMap riêng
         fun buildEpisodeList(epMap: Map<Int, List<String>>): List<Episode> =
             epMap.map { (epNum, links) ->
-                val tmdbEp = tmdbEpisodesMap[epNum]
-                val epName = subEpNames[epNum] ?: "Tập $epNum"
-                newEpisode(links.joinToString("|||")) {
+                val tmdbEp  = tmdbEpisodesMap[epNum]
+                val epName  = subEpNames[epNum] ?: "Tập $epNum"
+                // Fix 3: gắn link_sub vào cuối data string với prefix SUB::
+                val subLink = subLinkMap[epNum]?.let { "SUB::$it" }
+                val allData = (links + listOfNotNull(subLink)).joinToString("|||")
+                newEpisode(allData) {
                     this.name    = tmdbEp?.name ?: epName
                     this.episode = epNum
                     tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
@@ -253,9 +264,17 @@ class KKPExProvider : MainAPI() {
                 }
             }.sortedBy { it.episode }
 
-        val subEpisodesList = buildEpisodeList(subEpMap)
-        val dubEpisodesList = buildEpisodeList(dubEpMap)
-        val hasDub = dubEpisodesList.isNotEmpty()
+        // Merge sub+dub map tại đây 1 lần — tránh build lại trong case isSeries
+        val mergedEpMap: Map<Int, List<String>> = if (hasDub) {
+            val allNums = (subEpMap.keys + dubEpMap.keys).toSortedSet()
+            allNums.associateWith { epNum ->
+                (subEpMap[epNum] ?: emptyList()) + (dubEpMap[epNum] ?: emptyList())
+            }
+        } else subEpMap
+
+        val subEpisodesList    = buildEpisodeList(subEpMap)
+        val dubEpisodesList    = buildEpisodeList(dubEpMap)
+        val mergedEpisodesList = if (hasDub) buildEpisodeList(mergedEpMap) else subEpisodesList
 
         // =====================================================================
         // Metadata
@@ -343,30 +362,8 @@ class KKPExProvider : MainAPI() {
                 }
             }
             isSeries -> {
-                // Series: gộp sub + dub vào 1 list, sub trước để mặc định là Vietsub
-                // loadLinks sẽ phân biệt qua server_name trong data string
-                val mergedEpisodes = if (hasDub) {
-                    // Merge theo epNum: sub links + dub links vào cùng 1 episode
-                    val allNums = (subEpMap.keys + dubEpMap.keys).toSortedSet()
-                    allNums.map { epNum ->
-                        val subLinks = subEpMap[epNum] ?: emptyList()
-                        val dubLinks = dubEpMap[epNum] ?: emptyList()
-                        val tmdbEp  = tmdbEpisodesMap[epNum]
-                        val epName  = subEpNames[epNum] ?: "Tập $epNum"
-                        newEpisode((subLinks + dubLinks).joinToString("|||")) {
-                            this.name    = tmdbEp?.name ?: epName
-                            this.episode = epNum
-                            tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
-                            this.description = tmdbEp?.overview
-                            val rating = tmdbEp?.voteAverage
-                            if (rating != null && rating > 0) this.score = Score.from10(rating)
-                            this.runTime = tmdbEp?.runTime
-                            this.addDate(tmdbEp?.airDate)
-                        }
-                    }
-                } else subEpisodesList
-
-                newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, mergedEpisodes) {
+                // mergedEpisodesList đã được build 1 lần ở trên (sub trước, dub sau)
+                newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, mergedEpisodesList) {
                     this.posterUrl           = posterUrl
                     this.backgroundPosterUrl = finalBackdropUrl
                     this.year       = movie.year
@@ -407,6 +404,12 @@ class KKPExProvider : MainAPI() {
     ): Boolean {
         if (data.isEmpty()) return false
         data.split("|||").forEach { serverData ->
+            // Fix 3: tách subtitle link_sub (prefix SUB::) ra khỏi video links
+            if (serverData.startsWith("SUB::")) {
+                val subUrl = serverData.removePrefix("SUB::")
+                subtitleCallback(SubtitleFile("Vietsub", subUrl))
+                return@forEach
+            }
             val parts      = serverData.split("::")
             val url        = parts.getOrNull(0) ?: return@forEach
             val serverName = parts.getOrNull(1) ?: "HLS"

@@ -55,7 +55,7 @@ object KKExUtils {
             response?.results?.firstOrNull { result ->
                 val rawDate = if (isSeries) result.firstAirDate else result.releaseDate
                 val tmdbYear = rawDate?.take(4)?.toIntOrNull()
-                tmdbYear != null && Math.abs(tmdbYear - year) == 0
+                tmdbYear != null && tmdbYear == year
             }?.id?.toString()
         } catch (e: Exception) { null }
     }
@@ -188,7 +188,8 @@ data class KKServer(
 
 data class KKEpisode(
     @param:JsonProperty("name") val name: String? = null,
-    @param:JsonProperty("link_m3u8") val link_m3u8: String? = null
+    @param:JsonProperty("link_m3u8") val link_m3u8: String? = null,
+    @param:JsonProperty("link_sub") val link_sub: String? = null
 )
 
 data class KKTMDB(
