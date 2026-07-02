@@ -133,11 +133,6 @@ class KKPExProvider : MainAPI() {
         // Xác định loại nội dung
         val isAnime  = movie.type == "hoathinh"
         val isSeries = (movie.type == "series" || isAnime) && totalEpisodes != "1"
-        val tvType   = when {
-            isAnime  -> TvType.Anime
-            isSeries -> TvType.TvSeries
-            else     -> TvType.Movie
-        }
         val tmdbType = if (isSeries) "tv" else "movie"
 
         val finalSeasonNum = movie.tmdb?.season ?: 1
@@ -377,8 +372,11 @@ class KKPExProvider : MainAPI() {
                 }
             }
             else -> {
-                // Movie: gộp sub + dub links vào data string, sub trước
-                val allLinks = (subEpMap.values.flatten() + dubEpMap.values.flatten())
+                // Movie: gộp sub + dub links theo đúng thứ tự epNum, sub trước dub
+                val sortedNums = (subEpMap.keys + dubEpMap.keys).toSortedSet()
+                val allLinks = sortedNums.flatMap { epNum ->
+                    (subEpMap[epNum] ?: emptyList()) + (dubEpMap[epNum] ?: emptyList())
+                }
                 val movieData = allLinks.joinToString("|||").ifEmpty {
                     subEpisodesList.firstOrNull()?.data ?: ""
                 }
