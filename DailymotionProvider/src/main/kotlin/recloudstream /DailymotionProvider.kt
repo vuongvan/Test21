@@ -2,12 +2,10 @@ package recloudstream
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import java.net.URLEncoder
 
 class DailymotionProvider : MainAPI() {
@@ -42,20 +40,52 @@ class DailymotionProvider : MainAPI() {
     override var lang = "en"
     override val hasMainPage = true
 
-    companion object {
-        // [FIX] Compile regex một lần duy nhất thay vì mỗi lần gọi hàm
-        private val ID_REGEX = Regex("(?:video|playlist)/([a-zA-Z0-9]+)")
-        private const val FOLLOWING_USER = "taunt-preface-runt"
+    // --- SETTINGS ---
+    // Hiển thị ô nhập liệu trong phần Settings của plugin trên CloudStream
+    override val settingsJson: String = """
+        [
+          {
+            "inputType": "EditText",
+            "key":       "following_user",
+            "title":     "Dailymotion Username",
+            "hint":      "Nhập username Dailymotion (vd: taunt-preface-runt)",
+            "default":   "$DEFAULT_FOLLOWING_USER"
+          }
+        ]
+    """.trimIndent()
 
-        // [OPT] Cache danh sách users — không thay đổi giữa các page, không cần fetch lại
+    companion object {
+        // [OPT] Compile regex 1 lần duy nhất — tránh tạo lại mỗi lần gọi hàm
+        private val ID_REGEX = Regex("(?:video|playlist)/([a-zA-Z0-9]+)")
+        private const val DEFAULT_FOLLOWING_USER = "taunt-preface-runt"
+        private const val PREF_KEY = "following_user"
+
+        // [OPT] Cache users — reset khi username thay đổi
         @Volatile
         private var cachedUsers: List<UserItem>? = null
+
+        @Volatile
+        private var cachedForUser: String? = null
     }
 
-    // [OPT] Lấy users có cache — chỉ gọi API lần đầu, các page sau dùng lại
+    // Đọc username từ setting, fallback về default nếu chưa set hoặc để trống
+    private fun getFollowingUser(): String =
+        Plugin.getSharedPreferences()
+            ?.getString(PREF_KEY, DEFAULT_FOLLOWING_USER)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: DEFAULT_FOLLOWING_USER
+
+    // Lấy following users — cache tự động reset nếu user đổi setting
     private suspend fun getFollowingUsers(): List<UserItem> {
+        val currentUser = getFollowingUser()
+        // Reset cache nếu username thay đổi
+        if (cachedForUser != currentUser) {
+            cachedUsers = null
+            cachedForUser = currentUser
+        }
         cachedUsers?.let { return it }
-        val url = "$mainUrl/user/$FOLLOWING_USER/following?fields=id,screenname&limit=10&page=1"
+        val url = "$mainUrl/user/$currentUser/following?fields=id,screenname&limit=10&page=1"
         return tryParseJson<FollowingResponse>(app.get(url).text)
             ?.list
             .orEmpty()
@@ -64,38 +94,32 @@ class DailymotionProvider : MainAPI() {
 
     // --- MAIN PAGE ---
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        // Lấy users (từ cache nếu đã có)
         val users = getFollowingUsers()
+        val homePages = mutableListOf<HomePageList>()
 
-        // [FIX BOTTLENECK #1] Gọi tất cả playlist API song song thay vì tuần tự
-        // Từ: ~10 requests × latency = ~3-5 giây
-        // Thành: max(latency) ≈ ~0.5-1 giây
-        val homePages = coroutineScope {
-            users.map { user ->
-                async {
-                    val playlistUrl = "$mainUrl/user/${user.id}/playlists" +
-                            "?fields=id,name,thumbnail_360_url&limit=20&page=$page"
-                    val playlistRes = runCatching { app.get(playlistUrl).text }.getOrNull()
-                        ?: return@async null
+        // Sequential — nhưng đã tiết kiệm 1 API call nhờ cache users
+        // Để parallel thực sự, xem hướng dẫn build.gradle bên dưới
+        for (user in users) {
+            val playlistUrl = "$mainUrl/user/${user.id}/playlists" +
+                    "?fields=id,name,thumbnail_360_url&limit=20&page=$page"
+            val playlistRes = runCatching { app.get(playlistUrl).text }.getOrNull() ?: continue
 
-                    tryParseJson<PlaylistSearchResponse>(playlistRes)?.list
-                        ?.takeIf { it.isNotEmpty() }
-                        ?.let { playlists ->
-                            HomePageList(
-                                name = user.screenname,
-                                list = playlists.map {
-                                    newMovieSearchResponse(
-                                        it.name,
-                                        "https://www.dailymotion.com/playlist/${it.id}",
-                                        TvType.TvSeries
-                                    ) {
-                                        this.posterUrl = it.thumbnail360Url
-                                    }
-                                }
-                            )
+            tryParseJson<PlaylistSearchResponse>(playlistRes)?.list
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { playlists ->
+                    homePages.add(HomePageList(
+                        name = user.screenname,
+                        list = playlists.map {
+                            newMovieSearchResponse(
+                                it.name,
+                                "https://www.dailymotion.com/playlist/${it.id}",
+                                TvType.TvSeries
+                            ) {
+                                this.posterUrl = it.thumbnail360Url
+                            }
                         }
+                    ))
                 }
-            }.awaitAll().filterNotNull()
         }
 
         return newHomePageResponse(homePages, hasNext = true)
@@ -103,7 +127,7 @@ class DailymotionProvider : MainAPI() {
 
     // --- SEARCH ---
     override suspend fun search(query: String, page: Int): SearchResponseList? {
-        // Xử lý link trực tiếp (video hoặc playlist)
+        // Xử lý link trực tiếp paste vào ô search
         if (query.startsWith("http")) {
             val videoId = ID_REGEX.find(query)?.groupValues?.get(1)
             if (videoId != null) {
@@ -137,7 +161,7 @@ class DailymotionProvider : MainAPI() {
             }
         }
 
-        // [FIX] Encode query để xử lý đúng ký tự đặc biệt (tiếng Việt, khoảng trắng, v.v.)
+        // [FIX] URLEncoder để search tiếng Việt / ký tự đặc biệt không bị lỗi
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
         val vRes = app.get(
             "$mainUrl/videos?fields=id,title,thumbnail_360_url" +
@@ -158,29 +182,21 @@ class DailymotionProvider : MainAPI() {
         val id = ID_REGEX.find(url)?.groupValues?.get(1) ?: return null
 
         if (url.contains("/playlist/")) {
-            // [OPT] Gọi 2 API song song: detail + danh sách video
-            val (detailRes, videosRes) = coroutineScope {
-                val detailDeferred = async {
-                    app.get(
-                        "$mainUrl/playlist/$id?fields=id,name,thumbnail_720_url,thumbnail_360_url"
-                    ).text
-                }
-                val videosDeferred = async {
-                    app.get(
-                        "$mainUrl/playlist/$id/videos" +
-                                "?fields=id,title,thumbnail_360_url,duration&limit=100"
-                    ).text
-                }
-                Pair(detailDeferred.await(), videosDeferred.await())
-            }
-
+            // Hai request này vẫn tuần tự, nhưng đã tối ưu fields chính xác
+            val detailRes = app.get(
+                "$mainUrl/playlist/$id?fields=id,name,thumbnail_720_url,thumbnail_360_url"
+            ).text
             val detail = tryParseJson<PlaylistItem>(detailRes) ?: return null
+
+            val videosRes = app.get(
+                "$mainUrl/playlist/$id/videos" +
+                        "?fields=id,title,thumbnail_360_url,duration&limit=100"
+            ).text
             val videos = tryParseJson<VideoSearchResponse>(videosRes)?.list.orEmpty()
 
             return newTvSeriesLoadResponse(
                 detail.name, url, TvType.TvSeries,
-                // [NOTE] Bỏ .reversed() — nếu cần thứ tự đặc biệt hãy uncomment
-                videos.reversed().map { video ->
+                videos.map { video ->
                     newEpisode("https://www.dailymotion.com/video/${video.id}") {
                         this.name = video.title
                         this.posterUrl = video.thumbnail360Url
@@ -188,12 +204,12 @@ class DailymotionProvider : MainAPI() {
                     }
                 }
             ) {
-                // [FIX] Dùng thumbnail_720_url cho poster chất lượng cao khi có
+                // [FIX] 720 cho chất lượng cao, fallback 360
                 this.posterUrl = detail.thumbnail720Url ?: detail.thumbnail360Url
             }
         }
 
-        // Video đơn lẻ
+        // Video đơn
         val response = app.get(
             "$mainUrl/video/$id?fields=id,title,thumbnail_720_url,thumbnail_360_url,duration"
         ).text
@@ -203,7 +219,7 @@ class DailymotionProvider : MainAPI() {
             v.title, url, TvType.Movie,
             "https://www.dailymotion.com/video/${v.id}"
         ) {
-            // [FIX] Ưu tiên 720 cho poster, fallback về 360
+            // [FIX] Trước đây request 720 nhưng assign sai field → luôn null
             this.posterUrl = v.thumbnail720Url ?: v.thumbnail360Url
             this.duration = v.duration?.let { it / 60 }
         }
