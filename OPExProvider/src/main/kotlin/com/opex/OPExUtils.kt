@@ -45,8 +45,8 @@ object OPExUtils {
                         app.get("$TMDB_BASE/$tmdbType/$tmdbId/images?api_key=$TMDB_API_KEY", timeout = NETWORK_TIMEOUT).text
                     )
                 }
-                val result = textDeferred.await()?.copy(images = imagesDeferred.await())
-                if (result != null) tmdbDetailsCache.put(cacheKey, result)
+                val result = textDeferred.await().copy(images = imagesDeferred.await())
+                tmdbDetailsCache.put(cacheKey, result)
                 result
             }
         } catch (e: Exception) {

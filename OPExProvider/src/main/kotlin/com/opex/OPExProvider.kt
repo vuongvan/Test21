@@ -232,7 +232,7 @@ class OPExProvider : MainAPI() {
         val finalRating = tmdbDetails?.vote_average ?: movie.tmdb?.vote_average ?: 0.0
         val ophimPlot = (movie.content ?: "").replace(HTML_TAG_REGEX, "").replace("\\n", "\n")
         val plotClean = if (useTmdbPlot && !tmdbDetails?.overview.isNullOrEmpty())
-            tmdbDetails!!.overview!! else ophimPlot
+            tmdbDetails.overview else ophimPlot
         val movieName = movie.name?.split("-", "[")?.first()?.trim() ?: "OPhim"
         val rawStatus = movie.status ?: ""
 
