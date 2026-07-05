@@ -405,7 +405,7 @@ class KKPExProvider : MainAPI() {
             // Fix 3: tách subtitle link_sub (prefix SUB::) ra khỏi video links
             if (serverData.startsWith("SUB::")) {
                 val subUrl = serverData.removePrefix("SUB::")
-                subtitleCallback(SubtitleFile("Vietsub", subUrl))
+                subtitleCallback(newSubtitleFile("Vietsub", subUrl))
                 return@forEach
             }
             val parts      = serverData.split("::")
