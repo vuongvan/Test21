@@ -35,19 +35,14 @@ class DailymotionSettingsFragment(
             setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
         }
 
-        // ── Header ──────────────────────────────────────────────────────────
+        // ── Setting 1: Following user ──────────────────────────────────────
         layout.addView(TextView(ctx).apply {
-            text = "👤 Tài khoản Dailymotion"
+            text = "👤 Tài khoản Following"
             textSize = 16f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 4.dp() }
         })
-
         layout.addView(TextView(ctx).apply {
-            text = "Username để load danh sách following (trang chủ):"
+            text = "Username để lấy playlist của những người user này đang follow:"
             textSize = 13f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -56,10 +51,14 @@ class DailymotionSettingsFragment(
         })
 
         val userInput = EditText(ctx).apply {
-            hint    = DailymotionProvider.DEFAULT_FOLLOWING_USER
-            setText(sharedPref.getString(DailymotionProvider.PREF_KEY_USER,
-                DailymotionProvider.DEFAULT_FOLLOWING_USER))
-            inputType  = InputType.TYPE_CLASS_TEXT
+            hint = DailymotionProvider.DEFAULT_FOLLOWING_USER
+            setText(
+                sharedPref.getString(
+                    DailymotionProvider.PREF_KEY_USER,
+                    DailymotionProvider.DEFAULT_FOLLOWING_USER
+                )
+            )
+            inputType = InputType.TYPE_CLASS_TEXT
             isSingleLine = true
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -67,6 +66,39 @@ class DailymotionSettingsFragment(
             ).apply { topMargin = 4.dp() }
         }
         layout.addView(userInput)
+
+        // ── Setting 2: Extra users (playlist trực tiếp) ────────────────────
+        layout.addView(TextView(ctx).apply {
+            text = "📋 Danh sách user lấy playlist trực tiếp"
+            textSize = 16f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 24.dp() }
+        })
+        layout.addView(TextView(ctx).apply {
+            text = "Mỗi dòng 1 username. Playlist của các user này sẽ hiện thẳng " +
+                    "lên trang chủ, không cần qua bước following."
+            textSize = 13f
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 8.dp() }
+        })
+
+        val extraUsersInput = EditText(ctx).apply {
+            hint = "vd:\nuser-one\nuser-two\nuser-three"
+            setText(sharedPref.getString(DailymotionProvider.PREF_KEY_EXTRA_USERS, ""))
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 4
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 4.dp() }
+        }
+        layout.addView(extraUsersInput)
 
         // ── Buttons ─────────────────────────────────────────────────────────
         val saveBtn = Button(ctx).apply {
@@ -80,15 +112,18 @@ class DailymotionSettingsFragment(
                     .takeIf { it.isNotEmpty() }
                     ?: DailymotionProvider.DEFAULT_FOLLOWING_USER
 
+                val newExtraUsers = extraUsersInput.text.toString()
+
                 sharedPref.edit()
                     .putString(DailymotionProvider.PREF_KEY_USER, newUser)
+                    .putString(DailymotionProvider.PREF_KEY_EXTRA_USERS, newExtraUsers)
                     .apply()
 
-                // Reset cache để trang chủ reload theo user mới
+                // Reset cache để trang chủ reload theo setting mới
                 DailymotionProvider.cachedUsers   = null
                 DailymotionProvider.cachedForUser = null
 
-                showToast("Đã lưu: $newUser")
+                showToast("Đã lưu cài đặt")
                 dismiss()
             }
         }
@@ -101,12 +136,16 @@ class DailymotionSettingsFragment(
             ).apply { topMargin = 8.dp() }
             setOnClickListener {
                 sharedPref.edit()
-                    .putString(DailymotionProvider.PREF_KEY_USER,
-                        DailymotionProvider.DEFAULT_FOLLOWING_USER)
+                    .putString(
+                        DailymotionProvider.PREF_KEY_USER,
+                        DailymotionProvider.DEFAULT_FOLLOWING_USER
+                    )
+                    .putString(DailymotionProvider.PREF_KEY_EXTRA_USERS, "")
                     .apply()
                 DailymotionProvider.cachedUsers   = null
                 DailymotionProvider.cachedForUser = null
                 userInput.setText(DailymotionProvider.DEFAULT_FOLLOWING_USER)
+                extraUsersInput.setText("")
                 showToast("Đã reset về mặc định")
             }
         }

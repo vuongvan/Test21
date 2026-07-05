@@ -8,7 +8,11 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import java.net.URLEncoder
 
-class DailymotionProvider(private val sharedPref: SharedPreferences) : MainAPI() {
+class DailymotionProvider(private val sharedPref: SharedPreferences?) : MainAPI() {
+
+    // Constructor không tham số — bắt buộc để CloudStream có thể khởi tạo lại
+    // provider ở những nơi nó cần một instance mặc định (vd: hiển thị icon, tên).
+    constructor() : this(null)
 
     // --- DATA CLASSES ---
     data class VideoSearchResponse(@param:JsonProperty("list") val list: List<VideoItem>)
@@ -45,6 +49,9 @@ class DailymotionProvider(private val sharedPref: SharedPreferences) : MainAPI()
 
         const val DEFAULT_FOLLOWING_USER = "taunt-preface-runt"
         const val PREF_KEY_USER          = "dailymotion_following_user"
+        // [NEW] Setting 2 — danh sách username nhập trực tiếp, mỗi dòng 1 user.
+        // Playlist của các user này được lấy thẳng, không qua bước "following".
+        const val PREF_KEY_EXTRA_USERS   = "dailymotion_extra_users"
 
         // Cache — reset khi username thay đổi
         @Volatile var cachedUsers: List<UserItem>? = null
@@ -52,9 +59,18 @@ class DailymotionProvider(private val sharedPref: SharedPreferences) : MainAPI()
     }
 
     private fun getFollowingUser(): String =
-        sharedPref.getString(PREF_KEY_USER, DEFAULT_FOLLOWING_USER)
+        sharedPref?.getString(PREF_KEY_USER, DEFAULT_FOLLOWING_USER)
             ?.trim()?.takeIf { it.isNotEmpty() }
             ?: DEFAULT_FOLLOWING_USER
+
+    // [NEW] Đọc danh sách user trực tiếp từ setting 2 — mỗi dòng là 1 username.
+    // Trả về list rỗng nếu setting trống, đã lọc bỏ dòng trắng và khoảng trắng thừa.
+    private fun getExtraUsers(): List<String> =
+        sharedPref?.getString(PREF_KEY_EXTRA_USERS, "")
+            ?.lines()
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
 
     private suspend fun getFollowingUsers(): List<UserItem> {
         val currentUser = getFollowingUser()
@@ -69,31 +85,51 @@ class DailymotionProvider(private val sharedPref: SharedPreferences) : MainAPI()
             .also { cachedUsers = it }
     }
 
+    // Fetch playlists của 1 user (dùng chung cho cả 2 nguồn: following & extra)
+    private suspend fun fetchUserPlaylists(userId: String, page: Int): List<PlaylistItem> {
+        val playlistUrl = "$mainUrl/user/$userId/playlists" +
+                "?fields=id,name,thumbnail_360_url&limit=20&page=$page"
+        val playlistRes = runCatching { app.get(playlistUrl).text }.getOrNull() ?: return emptyList()
+        return tryParseJson<PlaylistSearchResponse>(playlistRes)?.list.orEmpty()
+    }
+
+    private fun PlaylistItem.toSearchResponse(): SearchResponse {
+        val poster = this.thumbnail360Url
+        return newMovieSearchResponse(
+            this.name,
+            "https://www.dailymotion.com/playlist/${this.id}",
+            TvType.TvSeries
+        ) { this.posterUrl = poster }
+    }
+
     // --- MAIN PAGE ---
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val users     = getFollowingUsers()
         val homePages = mutableListOf<HomePageList>()
 
-        for (user in users) {
-            val playlistUrl = "$mainUrl/user/${user.id}/playlists" +
-                    "?fields=id,name,thumbnail_360_url&limit=20&page=$page"
-            val playlistRes = runCatching { app.get(playlistUrl).text }.getOrNull() ?: continue
-
-            tryParseJson<PlaylistSearchResponse>(playlistRes)?.list
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { playlists ->
-                    homePages.add(HomePageList(
-                        name = user.screenname,
-                        list = playlists.map {
-                            newMovieSearchResponse(
-                                it.name,
-                                "https://www.dailymotion.com/playlist/${it.id}",
-                                TvType.TvSeries
-                            ) { this.posterUrl = it.thumbnail360Url }
-                        }
-                    ))
-                }
+        // [Setting 1] Following users — lấy playlist của những người user đang follow
+        for (user in getFollowingUsers()) {
+            val playlists = fetchUserPlaylists(user.id, page)
+            if (playlists.isNotEmpty()) {
+                homePages.add(HomePageList(
+                    name = user.screenname,
+                    list = playlists.map { it.toSearchResponse() }
+                ))
+            }
         }
+
+        // [Setting 2] Extra users — username nhập trực tiếp, lấy playlist thẳng
+        // Ở đây "userId" chính là username (Dailymotion API chấp nhận cả username
+        // hoặc numeric id trong endpoint /user/{id}/playlists).
+        for (username in getExtraUsers()) {
+            val playlists = fetchUserPlaylists(username, page)
+            if (playlists.isNotEmpty()) {
+                homePages.add(HomePageList(
+                    name = username,
+                    list = playlists.map { it.toSearchResponse() }
+                ))
+            }
+        }
+
         return newHomePageResponse(homePages, hasNext = true)
     }
 
