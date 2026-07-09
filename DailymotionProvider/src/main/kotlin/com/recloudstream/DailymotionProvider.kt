@@ -182,6 +182,8 @@ class DailymotionProvider(private val sharedPref: SharedPreferences?) : MainAPI(
             val videos = tryParseJson<VideoSearchResponse>(
                 app.get("$mainUrl/playlist/$id/videos?fields=id,title,thumbnail_360_url,duration&limit=100").text
             )?.list.orEmpty()
+                // [FIX] API trả về tập mới nhất ở đầu -> đảo ngược để tập 1 lên đầu
+                .reversed()
 
             return newTvSeriesLoadResponse(detail.name, url, TvType.TvSeries,
                 videos.map { video ->
