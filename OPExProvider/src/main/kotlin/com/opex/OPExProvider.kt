@@ -43,6 +43,7 @@ class OPExProvider : MainAPI() {
         const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
         const val PREF_CAST_COUNT         = "cast_count"          // default: 15
         const val PREF_FILTER_TRAILER     = "filter_trailer"      // default: true (lọc trailer) — boolean, không phải count
+        const val PREF_SPLIT_AUDIO_SEASONS = "split_audio_seasons" // default: true — tách Vietsub/Thuyết Minh/Lồng Tiếng thành mùa riêng (chỉ áp dụng phim bộ thường, không áp dụng anime)
 
         private val DEFAULT_PATHS = listOf(
             "v1/api/danh-sach/phim-moi-cap-nhat",
@@ -157,13 +158,17 @@ class OPExProvider : MainAPI() {
         val useRecommendations= prefs.getBoolean(PREF_USE_RECOMMENDATIONS, true)
         val useTmdbPlot       = prefs.getBoolean(PREF_USE_TMDB_PLOT, true)
         val castCount         = prefs.getInt(PREF_CAST_COUNT, 15)
+        val splitAudioSeasons = prefs.getBoolean(PREF_SPLIT_AUDIO_SEASONS, true)
 
         val isSeries = movie.episode_total?.trim() != "1"
         val tmdbType = movie.tmdb?.type ?: if (isSeries) "tv" else "movie"
         val seasonNumber = movie.tmdb?.season ?: 1
 
-        // Phase 1: build ophim episode map (pure local, không cần network)
-        val (subEpsMap, dubEpsMap) = buildEpsMaps(movie.episodes)
+        // Phase 1: build ophim episode map theo từng loại audio (pure local, không cần network)
+        val epsByAudio = buildEpsMaps(movie.episodes)
+        val subEpsMap        = epsByAudio.getValue(AudioType.SUB)
+        val thuyetMinhEpsMap = epsByAudio.getValue(AudioType.THUYET_MINH)
+        val longTiengEpsMap  = epsByAudio.getValue(AudioType.LONG_TIENG)
 
         // Phase 1 (song song): resolve tmdbId + fetch recommendations
         // — cả 2 không phụ thuộc nhau, chạy ngay lập tức
@@ -197,11 +202,26 @@ class OPExProvider : MainAPI() {
         val recommendationsList = recsDeferred.await()
 
         // Merge ophim map với TMDB season data (pure local, không cần thêm network)
+        // Anime: vẫn dùng cơ chế Sub/Dub gốc của CloudStream (chỉ hỗ trợ 2 track) —
+        // gộp Thuyết Minh + Lồng Tiếng chung thành "Dub" vì AnimeLoadResponse không tách được 3 track.
         val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
-        val dubEpisodes  = mergeEpisodesFromMap(dubEpsMap, tmdbSeason)
-        // Phim thường / phim lẻ: gộp cả Vietsub + Thuyết Minh vào cùng 1 tập (nhiều server)
-        // thay vì chỉ giữ 1 track — tránh mất Thuyết Minh khi phim có cả 2.
-        val episodeList = mergeEpisodesFromMap(mergeSubDubMaps(subEpsMap, dubEpsMap), tmdbSeason)
+        val dubEpisodes  = mergeEpisodesFromMap(mergeAudioMaps(thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
+
+        // Phim bộ thường / phim lẻ: nếu bật "tách mùa theo audio", mỗi loại Vietsub/Thuyết Minh/
+        // Lồng Tiếng trở thành 1 "mùa" riêng (chỉ áp dụng cho phim bộ, phim lẻ luôn gộp vì không
+        // có khái niệm mùa). Nếu tắt, gộp tất cả vào 1 tập như server khác nhau (hành vi cũ).
+        val episodeList = if (isSeries && splitAudioSeasons) {
+            buildList {
+                if (subEpsMap.isNotEmpty())
+                    addAll(mergeEpisodesFromMap(subEpsMap, tmdbSeason, AudioType.SUB.seasonNumber))
+                if (thuyetMinhEpsMap.isNotEmpty())
+                    addAll(mergeEpisodesFromMap(thuyetMinhEpsMap, tmdbSeason, AudioType.THUYET_MINH.seasonNumber))
+                if (longTiengEpsMap.isNotEmpty())
+                    addAll(mergeEpisodesFromMap(longTiengEpsMap, tmdbSeason, AudioType.LONG_TIENG.seasonNumber))
+            }
+        } else {
+            mergeEpisodesFromMap(mergeAudioMaps(subEpsMap, thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
+        }
 
         val posterUrl = if (useTmdbPoster)
             tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
@@ -283,26 +303,34 @@ class OPExProvider : MainAPI() {
     }
 
     // Phase 1 (sync): chỉ parse local data từ ophim, không có network call
-    // Phân loại server thành Sub/Dub dựa theo server_name
-    private fun isDubServer(serverName: String): Boolean {
-        val lower = serverName.lowercase()
-        return lower.contains("thuyết minh") || lower.contains("thuyet minh")
-            || lower.contains("lồng tiếng") || lower.contains("long tieng")
-            || lower.contains("dub")
+    // Phân loại server thành 3 nhóm audio riêng biệt dựa theo server_name.
+    // Lưu ý: "dub" (từ khoá chung chung, không rõ tiếng Việt) được xếp vào Lồng Tiếng
+    // vì "dub" thường ám chỉ lồng tiếng đầy đủ hơn là thuyết minh (voice-over).
+    private enum class AudioType(val seasonNumber: Int, val displayLabel: String) {
+        SUB(1, "Vietsub"),
+        THUYET_MINH(2, "Thuyết Minh"),
+        LONG_TIENG(3, "Lồng Tiếng")
     }
 
-    // Phase 1 (sync): build map riêng cho Sub và Dub
+    private fun audioTypeOf(serverName: String): AudioType {
+        val lower = serverName.lowercase()
+        return when {
+            lower.contains("lồng tiếng") || lower.contains("long tieng") || lower.contains("dub") -> AudioType.LONG_TIENG
+            lower.contains("thuyết minh") || lower.contains("thuyet minh") -> AudioType.THUYET_MINH
+            else -> AudioType.SUB
+        }
+    }
+
+    // Phase 1 (sync): build map riêng cho từng loại audio (Sub / Thuyết Minh / Lồng Tiếng)
     // Map<epNum, Pair<epName, links>>
-    private fun buildEpsMaps(ophimServers: List<OPServer>?):
-        Pair<MutableMap<Int, Pair<String, MutableList<String>>>,
-             MutableMap<Int, Pair<String, MutableList<String>>>> {
-        val subMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
-        val dubMap = mutableMapOf<Int, Pair<String, MutableList<String>>>()
+    private fun buildEpsMaps(ophimServers: List<OPServer>?): Map<AudioType, MutableMap<Int, Pair<String, MutableList<String>>>> {
+        val result: Map<AudioType, MutableMap<Int, Pair<String, MutableList<String>>>> =
+            AudioType.values().associateWith { mutableMapOf<Int, Pair<String, MutableList<String>>>() }
         // Đếm ngược cho các tập không parse được số (tránh đè lên nhau tại key mặc định)
         var fallbackNum = -1
         ophimServers?.forEach { server ->
             val sName = server.server_name ?: "Server"
-            val targetMap = if (isDubServer(sName)) dubMap else subMap
+            val targetMap = result.getValue(audioTypeOf(sName))
             server.server_data?.forEach { ep ->
                 val epName = ep.name ?: ""
                 val link = ep.link_m3u8 ?: return@forEach
@@ -315,29 +343,30 @@ class OPExProvider : MainAPI() {
                 }
             }
         }
-        return subMap to dubMap
+        return result
     }
 
-    // Gộp map Sub + Dub theo số tập (dùng cho phim thường/movie — không có UI tách track
-    // Sub/Dub riêng như Anime, nên gộp thành nhiều "server" trong cùng 1 tập để không mất Thuyết Minh)
-    private fun mergeSubDubMaps(
-        subMap: Map<Int, Pair<String, MutableList<String>>>,
-        dubMap: Map<Int, Pair<String, MutableList<String>>>
+    // Gộp nhiều map audio theo số tập thành 1 map — dùng khi KHÔNG tách mùa riêng
+    // (ví dụ: phim lẻ luôn gộp, hoặc phim bộ khi người dùng tắt tính năng tách mùa)
+    private fun mergeAudioMaps(
+        vararg maps: Map<Int, Pair<String, MutableList<String>>>
     ): Map<Int, Pair<String, MutableList<String>>> {
         val combined = mutableMapOf<Int, Pair<String, MutableList<String>>>()
-        subMap.forEach { (num, data) ->
-            combined.getOrPut(num) { data.first to mutableListOf() }.second.addAll(data.second)
-        }
-        dubMap.forEach { (num, data) ->
-            combined.getOrPut(num) { data.first to mutableListOf() }.second.addAll(data.second)
+        maps.forEach { map ->
+            map.forEach { (num, data) ->
+                combined.getOrPut(num) { data.first to mutableListOf() }.second.addAll(data.second)
+            }
         }
         return combined
     }
 
-    // Phase 2 (sync): merge 1 map với TMDB season data
+    // Phase 2 (sync): merge 1 map với TMDB season data.
+    // seasonOverride: nếu khác null, gán làm "mùa" của Episode (dùng để tách Vietsub/Thuyết Minh/
+    // Lồng Tiếng thành các mùa riêng trong danh sách tập của phim bộ thường).
     private fun mergeEpisodesFromMap(
         epsMap: Map<Int, Pair<String, MutableList<String>>>,
-        tmdbSeason: TmdbSeasonResponse?
+        tmdbSeason: TmdbSeasonResponse?,
+        seasonOverride: Int? = null
     ): List<Episode> {
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
         return epsMap.map { (num, data) ->
@@ -346,6 +375,7 @@ class OPExProvider : MainAPI() {
                 this.name = tmdbEp?.name
                     ?: if (data.first.contains("Tập", ignoreCase = true)) data.first else "Tập ${data.first}"
                 this.episode = num
+                if (seasonOverride != null) this.season = seasonOverride
                 this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
                 this.runTime = tmdbEp?.runtime
