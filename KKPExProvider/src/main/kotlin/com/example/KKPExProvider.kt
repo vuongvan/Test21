@@ -115,176 +115,110 @@ class KKPExProvider : MainAPI() {
         return getListFromUrl(url)
     }
 
-    override suspend fun load(url: String): LoadResponse? {
+    override suspend fun load(url: String): LoadResponse? = coroutineScope {
         val prefs = ctx?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val useTmdbPoster    = prefs?.getBoolean(PREF_USE_TMDB_POSTER, true) ?: true
-        val useTmdbBackdrop  = prefs?.getBoolean(PREF_USE_TMDB_BACKDROP, true) ?: true
-        val useTmdbPlot      = prefs?.getBoolean(PREF_USE_TMDB_PLOT, true) ?: true
-        val useRecommendations = prefs?.getBoolean(PREF_USE_RECOMMENDATIONS, true) ?: true
-        val castCount        = prefs?.getInt(PREF_CAST_COUNT, 15)?.coerceIn(1, 30) ?: 15
+        val useTmdbPoster       = prefs?.getBoolean(PREF_USE_TMDB_POSTER, true) ?: true
+        val useTmdbBackdrop     = prefs?.getBoolean(PREF_USE_TMDB_BACKDROP, true) ?: true
+        val useTmdbPlot         = prefs?.getBoolean(PREF_USE_TMDB_PLOT, true) ?: true
+        val useRecommendations  = prefs?.getBoolean(PREF_USE_RECOMMENDATIONS, true) ?: true
+        val castCount           = prefs?.getInt(PREF_CAST_COUNT, 15)?.coerceIn(1, 30) ?: 15
 
         val response = app.get(url).text
         val res = parseJson<KKDetailResponse>(response)
-        val movie = res.movie ?: return null
+        val movie = res.movie ?: return@coroutineScope null
 
         val rawStatus     = movie.status ?: ""
         val totalEpisodes = movie.episode_total ?: ""
-
-        // Xác định loại nội dung
         val isAnime  = movie.type == "hoathinh"
         val isSeries = (movie.type == "series" || isAnime) && totalEpisodes != "1"
         val tmdbType = if (isSeries) "tv" else "movie"
-
         val finalSeasonNum = movie.tmdb?.season ?: 1
+
+        // ---------------------------------------------------------------
+        // Phase 1 (sync, local): tách server thành 3 nhóm audio riêng biệt
+        // ---------------------------------------------------------------
+        val epsByAudio       = buildEpsMaps(res.episodes)
+        val subEpsMap        = epsByAudio.getValue(AudioType.SUB)
+        val thuyetMinhEpsMap = epsByAudio.getValue(AudioType.THUYET_MINH)
+        val longTiengEpsMap  = epsByAudio.getValue(AudioType.LONG_TIENG)
+
         val countrySlug   = movie.country?.firstOrNull()?.slug ?: ""
         val categorySlugs = movie.category?.mapNotNull { it.slug }?.joinToString(",") ?: ""
 
-        val tmdbEpisodesMap = mutableMapOf<Int, TmdbEpisodeDetail>()
+        // ---------------------------------------------------------------
+        // Phase 2 (song song): resolve tmdbId + fetch recommendations
+        // — cả 2 không phụ thuộc nhau, chạy song song ngay lập tức
+        // ---------------------------------------------------------------
+        val tmdbIdDeferred = async {
+            movie.tmdb?.id?.takeIf { it.isNotEmpty() }
+                ?: KKExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
+        }
+        val recsDeferred = async {
+            if (!useRecommendations || countrySlug.isEmpty()) return@async emptyList<SearchResponse>()
+            val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=20&category=$categorySlugs&sort_field=year&sort_type=desc"
+            getListFromUrl(recUrl).take(16)
+        }
+
+        // Chỉ await tmdbId để launch tiếp các TMDB call — recsDeferred vẫn chạy nền song song
+        val tmdbId = tmdbIdDeferred.await()
+
+        // ---------------------------------------------------------------
+        // Phase 3 (song song): cast + details + backdrops + season
+        // ---------------------------------------------------------------
         val tmdbActors: List<ActorData>?
         val tmdbDetails: TmdbDetailResponse?
         val tmdbBackdrops: List<String>
-        val recommendationsList: List<SearchResponse>
+        var tmdbSeason: TmdbSeasonResponse? = null
 
-        // =====================================================================
-        // [FIX BUG 1] findTmdbId launch NGAY trong coroutineScope cùng với rec
-        // Trước: findTmdbId (~400ms) blocking → xong mới launch bundle + rec
-        // Sau:   findTmdbId + rec chạy song song ngay từ đầu
-        //
-        // [FIX BUG 2] Không await() bundle giữa chừng trong scope
-        // Trước: bundleDeferred.await() block scope → rec bị chặn dù đã launch
-        // Sau:   await() tất cả cùng lúc ở cuối, không cái nào chặn cái nào
-        // =====================================================================
-        coroutineScope {
-            // Resolve tmdbId: nếu web có sẵn thì wrap luôn vào async để không block
-            val tmdbIdDeferred = async {
-                movie.tmdb?.id?.takeIf { it.isNotEmpty() }
-                    ?: KKExUtils.findTmdbId(movie.name, movie.origin_name, movie.year, isSeries)
-            }
-
-            // Rec launch song song ngay, không cần chờ tmdbId (trừ khi user tắt tính năng)
-            val recDeferred = async {
-                if (useRecommendations && countrySlug.isNotEmpty()) {
-                    val recUrl = "$mainUrl/v1/api/quoc-gia/$countrySlug?limit=16&category=$categorySlugs&sort_field=year&sort_type=desc"
-                    getListFromUrl(recUrl)
-                } else emptyList()
-            }
-
-            // Chờ tmdbId xong rồi mới quyết định launch bundle
-            // (bundle phụ thuộc tmdbId nên không thể tránh, nhưng rec đã chạy song song rồi)
-            val resolvedTmdbId = tmdbIdDeferred.await()
-
-            if (!resolvedTmdbId.isNullOrEmpty()) {
-                // Launch bundle + await() — rec vẫn đang chạy song song trong nền
-                if (isSeries) {
-                    val bundle = KKExUtils.fetchTmdbSeriesBundle(resolvedTmdbId, finalSeasonNum, castCount)
-                    tmdbActors    = bundle.cast
-                    tmdbDetails   = bundle.details
-                    tmdbBackdrops = bundle.backdrops
-                    bundle.season?.episodes?.forEach { ep ->
-                        ep.episodeNumber?.let { tmdbEpisodesMap[it] = ep }
-                    }
-                } else {
-                    val bundle = KKExUtils.fetchTmdbBundle(tmdbType, resolvedTmdbId, castCount)
-                    tmdbActors    = bundle.cast
-                    tmdbDetails   = bundle.details
-                    tmdbBackdrops = bundle.backdrops
-                }
+        if (!tmdbId.isNullOrEmpty()) {
+            if (isSeries) {
+                val bundle = KKExUtils.fetchTmdbSeriesBundle(tmdbId, finalSeasonNum, castCount)
+                tmdbActors    = bundle.cast
+                tmdbDetails   = bundle.details
+                tmdbBackdrops = bundle.backdrops
+                tmdbSeason    = bundle.season
             } else {
-                tmdbActors    = null
-                tmdbDetails   = null
-                tmdbBackdrops = emptyList()
+                val bundle = KKExUtils.fetchTmdbBundle(tmdbType, tmdbId, castCount)
+                tmdbActors    = bundle.cast
+                tmdbDetails   = bundle.details
+                tmdbBackdrops = bundle.backdrops
             }
-
-            // Await rec — nếu rec đã xong trong lúc bundle chạy thì return ngay, không chờ thêm
-            recommendationsList = recDeferred.await()
+        } else {
+            tmdbActors    = null
+            tmdbDetails   = null
+            tmdbBackdrops = emptyList()
         }
 
-        // =====================================================================
-        // Xây dựng danh sách tập phim — tách Sub/Dub theo server_name
-        // Sub (Vietsub) = mặc định, Dub (Thuyết Minh / Lồng Tiếng) = slot riêng
-        // =====================================================================
-        val subEpMap   = mutableMapOf<Int, MutableList<String>>()
-        val dubEpMap   = mutableMapOf<Int, MutableList<String>>()
-        val subEpNames = mutableMapOf<Int, String>()
-        // Fix 3: thu thập link_sub từ KKEpisode để truyền vào subtitleCallback
-        val subLinkMap = mutableMapOf<Int, String>()
+        // recsDeferred đã chạy song song từ Phase 2 nên thường đã xong lúc này
+        val recommendationsList = recsDeferred.await()
 
-        res.episodes?.forEach { server ->
-            val serverName  = server.server_name ?: "HLS"
-            val isDubServer = serverName.contains("Thuyết Minh", ignoreCase = true)
-                    || serverName.contains("Lồng Tiếng", ignoreCase = true)
+        // ---------------------------------------------------------------
+        // Merge ophim-style map với TMDB season data (local, không cần thêm network)
+        // Dùng CƠ CHẾ Sub/Dub GỐC của Cloudstream (newAnimeLoadResponse + addEpisodes)
+        // cho MỌI phim bộ — không chỉ Anime — để có tab Subbed/Dubbed đúng nghĩa.
+        // ---------------------------------------------------------------
+        val subEpisodes = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
+        // Gộp Thuyết Minh + Lồng Tiếng chung 1 tab Dubbed, phân biệt qua tên server khi chọn nguồn
+        val dubEpisodes = mergeEpisodesFromMap(mergeAudioMaps(thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
+        val hasDub = dubEpisodes.isNotEmpty()
 
-            server.server_data?.forEach { ep ->
-                val epName = ep.name ?: "1"
-                val epNum  = EP_NUM_REGEX.find(epName)?.value?.toIntOrNull() ?: return@forEach
-                val link   = ep.link_m3u8 ?: return@forEach
+        // Phim lẻ: gộp toàn bộ Vietsub + Thuyết Minh + Lồng Tiếng làm data cho 1 "tập" duy nhất
+        val movieData = mergeEpisodesFromMap(
+            mergeAudioMaps(subEpsMap, thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason
+        ).firstOrNull()?.data ?: ""
 
-                if (isDubServer) {
-                    dubEpMap.getOrPut(epNum) { mutableListOf() }.add("$link::$serverName")
-                } else {
-                    subEpMap.getOrPut(epNum) { mutableListOf() }.add("$link::$serverName")
-                    subEpNames[epNum] = epName
-                    ep.link_sub?.takeIf { it.isNotEmpty() }?.let { subLinkMap[epNum] = it }
-                }
-            }
-        }
-
-        // Fallback: nếu không có sub server (phim 1 server), gộp dub vào sub
-        if (subEpMap.isEmpty() && dubEpMap.isNotEmpty()) {
-            dubEpMap.forEach { (k, v) -> subEpMap[k] = v }
-            dubEpMap.clear()
-        }
-
-        val hasDub = dubEpMap.isNotEmpty()
-
-        // Fix 2: 1 hàm buildEpisodeList dùng chung — không build lại nhiều lần
-        // Với series có dub: truyền merged links (sub + dub) luôn từ đây
-        // Với anime có dub: truyền subEpMap hoặc dubEpMap riêng
-        fun buildEpisodeList(epMap: Map<Int, List<String>>): List<Episode> =
-            epMap.map { (epNum, links) ->
-                val tmdbEp  = tmdbEpisodesMap[epNum]
-                val epName  = subEpNames[epNum] ?: "Tập $epNum"
-                // Fix 3: gắn link_sub vào cuối data string với prefix SUB::
-                val subLink = subLinkMap[epNum]?.let { "SUB::$it" }
-                val allData = (links + listOfNotNull(subLink)).joinToString("|||")
-                newEpisode(allData) {
-                    this.name    = tmdbEp?.name ?: epName
-                    this.episode = epNum
-                    tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
-                    this.description = tmdbEp?.overview
-                    val rating = tmdbEp?.voteAverage
-                    if (rating != null && rating > 0) this.score = Score.from10(rating)
-                    this.runTime = tmdbEp?.runTime
-                    this.addDate(tmdbEp?.airDate)
-                }
-            }.sortedBy { it.episode }
-
-        // Merge sub+dub map tại đây 1 lần — tránh build lại trong case isSeries
-        val mergedEpMap: Map<Int, List<String>> = if (hasDub) {
-            val allNums = (subEpMap.keys + dubEpMap.keys).toSortedSet()
-            allNums.associateWith { epNum ->
-                (subEpMap[epNum] ?: emptyList()) + (dubEpMap[epNum] ?: emptyList())
-            }
-        } else subEpMap
-
-        val subEpisodesList    = buildEpisodeList(subEpMap)
-        val dubEpisodesList    = buildEpisodeList(dubEpMap)
-        val mergedEpisodesList = if (hasDub) buildEpisodeList(mergedEpMap) else subEpisodesList
-
-        // =====================================================================
+        // ---------------------------------------------------------------
         // Metadata
-        // =====================================================================
+        // ---------------------------------------------------------------
         val movieTags = buildList {
             if (isSeries) {
                 val isCompleted    = movie.status == "completed"
                 val currentFromApi = movie.episode_current ?: ""
                 add(if (!isCompleted) "$currentFromApi/$totalEpisodes" else currentFromApi)
             }
-            movie.lang?.let { lang ->
-                when {
-                    lang.contains("Thuyết Minh", ignoreCase = true) -> add("Thuyết Minh")
-                    lang.contains("Lồng Tiếng", ignoreCase = true)  -> add("Lồng Tiếng")
-                }
+            movie.lang?.split("+")?.forEach { part ->
+                val trimmed = part.trim()
+                if (trimmed.isNotEmpty() && !trimmed.contains("Vietsub", ignoreCase = true)) add(trimmed)
             }
             movie.category?.forEach { cat -> cat.name?.let { add(it) } }
         }
@@ -303,95 +237,131 @@ class KKPExProvider : MainAPI() {
 
         val posterUrl = if (useTmdbPoster) {
             tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } ?: movie.poster_url
-        } else {
-            movie.poster_url
-        }
+        } else movie.poster_url
 
         val finalBackdropUrl = if (useTmdbBackdrop) {
-            if (tmdbBackdrops.isNotEmpty()) {
-                tmdbBackdrops.random()
-            } else {
-                tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" } ?: movie.thumb_url
-            }
-        } else {
-            movie.thumb_url
-        }
+            tmdbBackdrops.randomOrNull()
+                ?: tmdbDetails?.backdrop_path?.let { "https://image.tmdb.org/t/p/w1280$it" }
+                ?: movie.thumb_url
+        } else movie.thumb_url
 
-        // isDub/isSub đã được xác định chính xác qua việc tách server bên trên
-        // hasDub = true nếu API trả về server Thuyết Minh / Lồng Tiếng riêng biệt
+        val showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true))
+            ShowStatus.Completed else ShowStatus.Ongoing
 
-        // =====================================================================
+        // ---------------------------------------------------------------
         // Build response
-        // =====================================================================
+        // ---------------------------------------------------------------
+        when {
+            !isSeries -> newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, movieData) {
+                this.posterUrl           = posterUrl
+                this.backgroundPosterUrl = finalBackdropUrl
+                this.year   = movie.year
+                this.plot   = fullPlot
+                this.tags   = movieTags
+                this.score  = if (finalRating > 0) Score.from10(finalRating) else null
+                this.actors = finalActors
+                this.recommendations = recommendationsList
+            }
+            // Phim bộ (Anime lẫn thường) — dùng chung builder để có tab Subbed/Dubbed gốc
+            // của Cloudstream, không phụ thuộc TvType.
+            else -> newAnimeLoadResponse(movie.name ?: "", url, if (isAnime) TvType.Anime else TvType.TvSeries) {
+                if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
+                if (hasDub) addEpisodes(DubStatus.Dubbed, dubEpisodes)
+                this.posterUrl           = posterUrl
+                this.backgroundPosterUrl = finalBackdropUrl
+                this.year       = movie.year
+                this.plot       = fullPlot
+                this.tags       = movieTags
+                this.showStatus = showStatus
+                this.score      = if (finalRating > 0) Score.from10(finalRating) else null
+                this.actors     = finalActors
+                this.recommendations = recommendationsList
+            }
+        }
+    }
+
+    // =====================================================================
+    // Phase 1 (sync): phân loại server thành 3 nhóm audio riêng biệt
+    // dựa theo server_name. "dub"/"lồng tiếng" -> LONG_TIENG,
+    // "thuyết minh" -> THUYET_MINH, còn lại mặc định -> SUB (Vietsub)
+    // =====================================================================
+    private enum class AudioType { SUB, THUYET_MINH, LONG_TIENG }
+
+    private fun audioTypeOf(serverName: String): AudioType {
+        val lower = serverName.lowercase()
         return when {
-            isAnime && isSeries -> {
-                newAnimeLoadResponse(movie.name ?: "", url, TvType.Anime) {
-                    // Sub luôn là mặc định (ưu tiên), Dub thêm nếu có
-                    addEpisodes(DubStatus.Subbed, subEpisodesList)
-                    if (hasDub) addEpisodes(DubStatus.Dubbed, dubEpisodesList)
-                    this.posterUrl           = posterUrl
-                    this.backgroundPosterUrl = finalBackdropUrl
-                    this.year       = movie.year
-                    this.plot       = fullPlot
-                    this.tags       = movieTags
-                    this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true))
-                        ShowStatus.Completed else ShowStatus.Ongoing
-                    this.score      = if (finalRating > 0) Score.from10(finalRating) else null
-                    this.actors     = finalActors
-                    this.recommendations = recommendationsList
-                }
-            }
-            isAnime && !isSeries -> {
-                val movieData = subEpisodesList.firstOrNull()?.data ?: ""
-                newAnimeLoadResponse(movie.name ?: "", url, TvType.AnimeMovie) {
-                    addEpisodes(DubStatus.Subbed, subEpisodesList)
-                    if (hasDub) addEpisodes(DubStatus.Dubbed, dubEpisodesList)
-                    this.posterUrl           = posterUrl
-                    this.backgroundPosterUrl = finalBackdropUrl
-                    this.year   = movie.year
-                    this.plot   = fullPlot
-                    this.tags   = movieTags
-                    this.score  = if (finalRating > 0) Score.from10(finalRating) else null
-                    this.actors = finalActors
-                    this.recommendations = recommendationsList
-                }
-            }
-            isSeries -> {
-                // mergedEpisodesList đã được build 1 lần ở trên (sub trước, dub sau)
-                newTvSeriesLoadResponse(movie.name ?: "", url, TvType.TvSeries, mergedEpisodesList) {
-                    this.posterUrl           = posterUrl
-                    this.backgroundPosterUrl = finalBackdropUrl
-                    this.year       = movie.year
-                    this.plot       = fullPlot
-                    this.tags       = movieTags
-                    this.showStatus = if (rawStatus.contains("completed", true) || rawStatus.contains("hoàn thành", true))
-                        ShowStatus.Completed else ShowStatus.Ongoing
-                    this.score      = if (finalRating > 0) Score.from10(finalRating) else null
-                    this.actors     = finalActors
-                    this.recommendations = recommendationsList
-                }
-            }
-            else -> {
-                // Movie: gộp sub + dub links theo đúng thứ tự epNum, sub trước dub
-                val sortedNums = (subEpMap.keys + dubEpMap.keys).toSortedSet()
-                val allLinks = sortedNums.flatMap { epNum ->
-                    (subEpMap[epNum] ?: emptyList()) + (dubEpMap[epNum] ?: emptyList())
-                }
-                val movieData = allLinks.joinToString("|||").ifEmpty {
-                    subEpisodesList.firstOrNull()?.data ?: ""
-                }
-                newMovieLoadResponse(movie.name ?: "", url, TvType.Movie, movieData) {
-                    this.posterUrl           = posterUrl
-                    this.backgroundPosterUrl = finalBackdropUrl
-                    this.year   = movie.year
-                    this.plot   = fullPlot
-                    this.tags   = movieTags
-                    this.score  = if (finalRating > 0) Score.from10(finalRating) else null
-                    this.actors = finalActors
-                    this.recommendations = recommendationsList
+            lower.contains("lồng tiếng") || lower.contains("long tieng") || lower.contains("dub") -> AudioType.LONG_TIENG
+            lower.contains("thuyết minh") || lower.contains("thuyet minh") -> AudioType.THUYET_MINH
+            else -> AudioType.SUB
+        }
+    }
+
+    // Map<epNum, EpData(epName, links, subUrl)> cho từng loại audio
+    // subUrl (link_sub) chỉ có ý nghĩa với server Vietsub, giữ riêng để loadLinks
+    // có thể tự động gọi subtitleCallback mà không cần user tìm thủ công.
+    private data class EpData(val name: String, val links: MutableList<String>, var subUrl: String? = null)
+
+    private fun buildEpsMaps(servers: List<KKServer>?): Map<AudioType, MutableMap<Int, EpData>> {
+        val result: Map<AudioType, MutableMap<Int, EpData>> =
+            AudioType.values().associateWith { mutableMapOf<Int, EpData>() }
+        var fallbackNum = -1
+        servers?.forEach { server ->
+            val sName = server.server_name ?: "HLS"
+            val audioType = audioTypeOf(sName)
+            val targetMap = result.getValue(audioType)
+            server.server_data?.forEach { ep ->
+                val epName = ep.name ?: ""
+                val link = ep.link_m3u8 ?: return@forEach
+                val parsedNum = EP_NUM_REGEX.find(epName)?.value?.toIntOrNull()
+                val key = parsedNum ?: fallbackNum--
+                val entry = targetMap.getOrPut(key) { EpData(epName, mutableListOf()) }
+                entry.links.add("$link::$sName")
+                // link_sub chỉ áp dụng cho server Vietsub (SUB)
+                if (audioType == AudioType.SUB) {
+                    ep.link_sub?.takeIf { it.isNotEmpty() }?.let { entry.subUrl = it }
                 }
             }
         }
+        return result
+    }
+
+    // Gộp nhiều map audio theo số tập thành 1 map — dùng cho phim lẻ hoặc gộp Dub chung
+    private fun mergeAudioMaps(vararg maps: Map<Int, EpData>): Map<Int, EpData> {
+        val combined = mutableMapOf<Int, EpData>()
+        maps.forEach { map ->
+            map.forEach { (num, data) ->
+                val entry = combined.getOrPut(num) { EpData(data.name, mutableListOf()) }
+                entry.links.addAll(data.links)
+                if (entry.subUrl == null) entry.subUrl = data.subUrl
+            }
+        }
+        return combined
+    }
+
+    // Phase (sync): merge 1 map với TMDB season data để lấy tên/ảnh/mô tả tập chính xác hơn.
+    // Nếu có link_sub, gắn thêm entry "SUB::url" vào cuối data string —
+    // loadLinks() sẽ nhận ra prefix này và tự gọi subtitleCallback.
+    private fun mergeEpisodesFromMap(
+        epsMap: Map<Int, EpData>,
+        tmdbSeason: TmdbSeasonResponse?
+    ): List<Episode> {
+        val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episodeNumber }
+        return epsMap.map { (num, data) ->
+            val tmdbEp = tmdbEpsMap?.get(num)
+            val subEntry = data.subUrl?.let { "SUB::$it" }
+            val allData = (data.links + listOfNotNull(subEntry)).joinToString("|||")
+            newEpisode(allData) {
+                this.name = tmdbEp?.name
+                    ?: if (data.name.contains("Tập", ignoreCase = true)) data.name else "Tập ${data.name}"
+                this.episode = num
+                tmdbEp?.stillPath?.let { this.posterUrl = "https://image.tmdb.org/t/p/w300$it" }
+                this.description = tmdbEp?.overview
+                val rating = tmdbEp?.voteAverage
+                if (rating != null && rating > 0) this.score = Score.from10(rating)
+                this.runTime = tmdbEp?.runTime
+                this.addDate(tmdbEp?.airDate)
+            }
+        }.sortedBy { it.episode }
     }
 
     override suspend fun loadLinks(
@@ -402,17 +372,16 @@ class KKPExProvider : MainAPI() {
     ): Boolean {
         if (data.isEmpty()) return false
         data.split("|||").forEach { serverData ->
-            // Fix 3: tách subtitle link_sub (prefix SUB::) ra khỏi video links
             if (serverData.startsWith("SUB::")) {
                 val subUrl = serverData.removePrefix("SUB::")
                 subtitleCallback(newSubtitleFile("Vietsub", subUrl))
                 return@forEach
             }
             val parts      = serverData.split("::")
-            val url        = parts.getOrNull(0) ?: return@forEach
+            val linkUrl    = parts.getOrNull(0) ?: return@forEach
             val serverName = parts.getOrNull(1) ?: "HLS"
             callback.invoke(
-                newExtractorLink(serverName, serverName, url, type = ExtractorLinkType.M3U8)
+                newExtractorLink(serverName, serverName, linkUrl, type = ExtractorLinkType.M3U8)
             )
         }
         return true
