@@ -117,9 +117,9 @@ class SettingsFragment(
 
         // ── Section: Phim bộ ──────────────────────────────────────────────────
         layout.addView(sectionHeader("🎧 Phim bộ"))
-        layout.addView(label("Khi bật: Vietsub / Thuyết Minh / Lồng Tiếng hiện thành các mùa riêng để chọn."))
+        layout.addView(label("Vietsub và Thuyết Minh/Lồng Tiếng hiện thành 2 tab riêng (Subbed/Dubbed) để chọn. Khi bật thêm bên dưới: nếu phim có CẢ Thuyết Minh lẫn Lồng Tiếng, 2 loại này tách thành 2 mùa trong tab Dubbed."))
         val swSplitAudioSeasons = switchRow(
-            "Tách Vietsub/Thuyết Minh/Lồng Tiếng thành mùa riêng",
+            "Tách Thuyết Minh/Lồng Tiếng thành mùa riêng (khi có cả 2)",
             OPExProvider.PREF_SPLIT_AUDIO_SEASONS,
             true
         )

@@ -43,7 +43,7 @@ class OPExProvider : MainAPI() {
         const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
         const val PREF_CAST_COUNT         = "cast_count"          // default: 15
         const val PREF_FILTER_TRAILER     = "filter_trailer"      // default: true (lọc trailer) — boolean, không phải count
-        const val PREF_SPLIT_AUDIO_SEASONS = "split_audio_seasons" // default: true — tách Vietsub/Thuyết Minh/Lồng Tiếng thành mùa riêng (chỉ áp dụng phim bộ thường, không áp dụng anime)
+        const val PREF_SPLIT_AUDIO_SEASONS = "split_audio_seasons" // default: true — khi phim có CẢ Thuyết Minh lẫn Lồng Tiếng, tách 2 loại này thành 2 mùa trong tab Dubbed
 
         private val DEFAULT_PATHS = listOf(
             "v1/api/danh-sach/phim-moi-cap-nhat",
@@ -201,27 +201,27 @@ class OPExProvider : MainAPI() {
         val tmdbSeason          = seasonDeferred.await()
         val recommendationsList = recsDeferred.await()
 
-        // Merge ophim map với TMDB season data (pure local, không cần thêm network)
-        // Anime: vẫn dùng cơ chế Sub/Dub gốc của CloudStream (chỉ hỗ trợ 2 track) —
-        // gộp Thuyết Minh + Lồng Tiếng chung thành "Dub" vì AnimeLoadResponse không tách được 3 track.
-        val subEpisodes  = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
-        val dubEpisodes  = mergeEpisodesFromMap(mergeAudioMaps(thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
-
-        // Phim bộ thường / phim lẻ: nếu bật "tách mùa theo audio", mỗi loại Vietsub/Thuyết Minh/
-        // Lồng Tiếng trở thành 1 "mùa" riêng (chỉ áp dụng cho phim bộ, phim lẻ luôn gộp vì không
-        // có khái niệm mùa). Nếu tắt, gộp tất cả vào 1 tập như server khác nhau (hành vi cũ).
-        val episodeList = if (isSeries && splitAudioSeasons) {
-            buildList {
-                if (subEpsMap.isNotEmpty())
-                    addAll(mergeEpisodesFromMap(subEpsMap, tmdbSeason, AudioType.SUB.seasonNumber))
-                if (thuyetMinhEpsMap.isNotEmpty())
-                    addAll(mergeEpisodesFromMap(thuyetMinhEpsMap, tmdbSeason, AudioType.THUYET_MINH.seasonNumber))
-                if (longTiengEpsMap.isNotEmpty())
-                    addAll(mergeEpisodesFromMap(longTiengEpsMap, tmdbSeason, AudioType.LONG_TIENG.seasonNumber))
-            }
+        // Merge ophim map với TMDB season data (pure local, không cần thêm network).
+        // Dùng cơ chế Sub/Dub GỐC của CloudStream (newAnimeLoadResponse + addEpisodes(DubStatus, ...))
+        // cho MỌI phim bộ — không chỉ riêng Anime — vì builder này vẫn hoạt động tốt với
+        // TvType.TvSeries, cho ra tab "Subbed"/"Dubbed" đúng nghĩa thay vì phải giả lập bằng
+        // Season (CloudStream không cho đổi tên "Season N" thành text tuỳ ý).
+        val subEpisodes = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
+        val dubEpisodes = if (splitAudioSeasons && thuyetMinhEpsMap.isNotEmpty() && longTiengEpsMap.isNotEmpty()) {
+            // Có cả Thuyết Minh lẫn Lồng Tiếng -> tách thành 2 "mùa" riêng bên trong tab Dub
+            // để người dùng phân biệt được (chỉ xảy ra trong trường hợp hiếm này).
+            mergeEpisodesFromMap(thuyetMinhEpsMap, tmdbSeason, 1) +
+                mergeEpisodesFromMap(longTiengEpsMap, tmdbSeason, 2)
         } else {
-            mergeEpisodesFromMap(mergeAudioMaps(subEpsMap, thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
+            // Chỉ có 1 loại lồng tiếng (hoặc tắt tính năng) -> gộp chung, phân biệt qua tên
+            // server (Thuyết Minh #1 / Lồng Tiếng #1...) khi người dùng chọn nguồn phát.
+            mergeEpisodesFromMap(mergeAudioMaps(thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
         }
+
+        // Phim lẻ: gộp toàn bộ Vietsub + Thuyết Minh + Lồng Tiếng làm data cho 1 "tập" duy nhất
+        // (phim lẻ không có khái niệm mùa/track riêng trong MovieLoadResponse).
+        val movieData = mergeEpisodesFromMap(mergeAudioMaps(subEpsMap, thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
+            .firstOrNull()?.data ?: ""
 
         val posterUrl = if (useTmdbPoster)
             tmdbDetails?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" }
@@ -262,33 +262,22 @@ class OPExProvider : MainAPI() {
             ShowStatus.Ongoing else ShowStatus.Completed
 
         return@coroutineScope when {
-            // Anime series (hoathinh + nhiều tập)
-            isAnime && isSeries -> newAnimeLoadResponse(movieName, url, TvType.Anime) {
+            // Phim lẻ (bao gồm anime movie)
+            !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, movieData) {
+                this.posterUrl = posterUrl
+                this.backgroundPosterUrl = finalBackdropUrl
+                this.recommendations = recommendationsList
+                this.plot = plotClean
+                this.year = movie.year
+                this.tags = metaTags
+                this.actors = actorsList
+                if (finalRating > 0) this.score = Score.from10(finalRating)
+            }
+            // Phim bộ (Anime lẫn thường) — dùng chung builder để có tab Subbed/Dubbed gốc
+            // của CloudStream, không phụ thuộc TvType.
+            else -> newAnimeLoadResponse(movieName, url, if (isAnime) TvType.Anime else TvType.TvSeries) {
                 if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
                 if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
-                this.posterUrl = posterUrl
-                this.backgroundPosterUrl = finalBackdropUrl
-                this.recommendations = recommendationsList
-                this.plot = plotClean
-                this.year = movie.year
-                this.tags = metaTags
-                this.actors = actorsList
-                if (finalRating > 0) this.score = Score.from10(finalRating)
-                this.showStatus = showStatus
-            }
-            // Phim lẻ (bao gồm anime movie)
-            !isSeries -> newMovieLoadResponse(movieName, url, TvType.Movie, episodeList.firstOrNull()?.data ?: "") {
-                this.posterUrl = posterUrl
-                this.backgroundPosterUrl = finalBackdropUrl
-                this.recommendations = recommendationsList
-                this.plot = plotClean
-                this.year = movie.year
-                this.tags = metaTags
-                this.actors = actorsList
-                if (finalRating > 0) this.score = Score.from10(finalRating)
-            }
-            // Series thường
-            else -> newTvSeriesLoadResponse(movieName, url, TvType.TvSeries, episodeList) {
                 this.posterUrl = posterUrl
                 this.backgroundPosterUrl = finalBackdropUrl
                 this.recommendations = recommendationsList
@@ -306,11 +295,7 @@ class OPExProvider : MainAPI() {
     // Phân loại server thành 3 nhóm audio riêng biệt dựa theo server_name.
     // Lưu ý: "dub" (từ khoá chung chung, không rõ tiếng Việt) được xếp vào Lồng Tiếng
     // vì "dub" thường ám chỉ lồng tiếng đầy đủ hơn là thuyết minh (voice-over).
-    private enum class AudioType(val seasonNumber: Int, val displayLabel: String) {
-        SUB(1, "Vietsub"),
-        THUYET_MINH(2, "Thuyết Minh"),
-        LONG_TIENG(3, "Lồng Tiếng")
-    }
+    private enum class AudioType { SUB, THUYET_MINH, LONG_TIENG }
 
     private fun audioTypeOf(serverName: String): AudioType {
         val lower = serverName.lowercase()
