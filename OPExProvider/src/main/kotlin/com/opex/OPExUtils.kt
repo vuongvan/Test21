@@ -171,6 +171,7 @@ data class OPItemDetail(
     @param:JsonProperty("category") val category: List<OPCat>? = null,
     @param:JsonProperty("poster_url") val poster_url: String? = null,
     @param:JsonProperty("thumb_url") val thumb_url: String? = null,
+    @param:JsonProperty("trailer_url") val trailer_url: String? = null,
     @param:JsonProperty("episodes") val episodes: List<OPServer>? = null
 )
 

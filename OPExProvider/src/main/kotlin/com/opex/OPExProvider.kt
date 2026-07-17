@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.addEpisodes
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
@@ -43,7 +44,6 @@ class OPExProvider : MainAPI() {
         const val PREF_USE_TMDB_PLOT      = "use_tmdb_plot"       // default: true
         const val PREF_CAST_COUNT         = "cast_count"          // default: 15
         const val PREF_FILTER_TRAILER     = "filter_trailer"      // default: true (lọc trailer) — boolean, không phải count
-        const val PREF_SPLIT_AUDIO_SEASONS = "split_audio_seasons" // default: true — khi phim có CẢ Thuyết Minh lẫn Lồng Tiếng, tách 2 loại này thành 2 mùa trong tab Dubbed
 
         private val DEFAULT_PATHS = listOf(
             "v1/api/danh-sach/phim-moi-cap-nhat",
@@ -158,7 +158,6 @@ class OPExProvider : MainAPI() {
         val useRecommendations= prefs.getBoolean(PREF_USE_RECOMMENDATIONS, true)
         val useTmdbPlot       = prefs.getBoolean(PREF_USE_TMDB_PLOT, true)
         val castCount         = prefs.getInt(PREF_CAST_COUNT, 15)
-        val splitAudioSeasons = prefs.getBoolean(PREF_SPLIT_AUDIO_SEASONS, true)
 
         val isSeries = movie.episode_total?.trim() != "1"
         val tmdbType = movie.tmdb?.type ?: if (isSeries) "tv" else "movie"
@@ -207,16 +206,9 @@ class OPExProvider : MainAPI() {
         // TvType.TvSeries, cho ra tab "Subbed"/"Dubbed" đúng nghĩa thay vì phải giả lập bằng
         // Season (CloudStream không cho đổi tên "Season N" thành text tuỳ ý).
         val subEpisodes = mergeEpisodesFromMap(subEpsMap, tmdbSeason)
-        val dubEpisodes = if (splitAudioSeasons && thuyetMinhEpsMap.isNotEmpty() && longTiengEpsMap.isNotEmpty()) {
-            // Có cả Thuyết Minh lẫn Lồng Tiếng -> tách thành 2 "mùa" riêng bên trong tab Dub
-            // để người dùng phân biệt được (chỉ xảy ra trong trường hợp hiếm này).
-            mergeEpisodesFromMap(thuyetMinhEpsMap, tmdbSeason, 1) +
-                mergeEpisodesFromMap(longTiengEpsMap, tmdbSeason, 2)
-        } else {
-            // Chỉ có 1 loại lồng tiếng (hoặc tắt tính năng) -> gộp chung, phân biệt qua tên
-            // server (Thuyết Minh #1 / Lồng Tiếng #1...) khi người dùng chọn nguồn phát.
-            mergeEpisodesFromMap(mergeAudioMaps(thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
-        }
+        // Thuyết Minh + Lồng Tiếng gộp chung vào tab Dubbed — phân biệt qua tên server
+        // (Thuyết Minh #1 / Lồng Tiếng #1...) khi người dùng chọn nguồn phát.
+        val dubEpisodes = mergeEpisodesFromMap(mergeAudioMaps(thuyetMinhEpsMap, longTiengEpsMap), tmdbSeason)
 
         // Phim lẻ: gộp toàn bộ Vietsub + Thuyết Minh + Lồng Tiếng làm data cho 1 "tập" duy nhất
         // (phim lẻ không có khái niệm mùa/track riêng trong MovieLoadResponse).
@@ -272,6 +264,7 @@ class OPExProvider : MainAPI() {
                 this.tags = metaTags
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
+                addTrailer(movie.trailer_url?.let { listOf(it) })
             }
             // Phim bộ (Anime lẫn thường) — dùng chung builder để có tab Subbed/Dubbed gốc
             // của CloudStream, không phụ thuộc TvType.
@@ -287,6 +280,7 @@ class OPExProvider : MainAPI() {
                 this.actors = actorsList
                 if (finalRating > 0) this.score = Score.from10(finalRating)
                 this.showStatus = showStatus
+                addTrailer(movie.trailer_url?.let { listOf(it) })
             }
         }
     }
@@ -345,13 +339,10 @@ class OPExProvider : MainAPI() {
         return combined
     }
 
-    // Phase 2 (sync): merge 1 map với TMDB season data.
-    // seasonOverride: nếu khác null, gán làm "mùa" của Episode (dùng để tách Vietsub/Thuyết Minh/
-    // Lồng Tiếng thành các mùa riêng trong danh sách tập của phim bộ thường).
+    // Phase 2 (sync): merge 1 map với TMDB season data
     private fun mergeEpisodesFromMap(
         epsMap: Map<Int, Pair<String, MutableList<String>>>,
-        tmdbSeason: TmdbSeasonResponse?,
-        seasonOverride: Int? = null
+        tmdbSeason: TmdbSeasonResponse?
     ): List<Episode> {
         val tmdbEpsMap = tmdbSeason?.episodes?.associateBy { it.episode_number }
         return epsMap.map { (num, data) ->
@@ -360,7 +351,6 @@ class OPExProvider : MainAPI() {
                 this.name = tmdbEp?.name
                     ?: if (data.first.contains("Tập", ignoreCase = true)) data.first else "Tập ${data.first}"
                 this.episode = num
-                if (seasonOverride != null) this.season = seasonOverride
                 this.posterUrl = tmdbEp?.still_path?.let { "https://image.tmdb.org/t/p/w500$it" }
                 this.description = tmdbEp?.overview
                 this.runTime = tmdbEp?.runtime
