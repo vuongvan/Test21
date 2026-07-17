@@ -115,15 +115,6 @@ class SettingsFragment(
         layout.addView(sectionHeader("🔍 Lọc nội dung"))
         val swFilterTrailer = switchRow("Ẩn trailer khỏi danh sách", OPExProvider.PREF_FILTER_TRAILER, true)
 
-        // ── Section: Phim bộ ──────────────────────────────────────────────────
-        layout.addView(sectionHeader("🎧 Phim bộ"))
-        layout.addView(label("Vietsub và Thuyết Minh/Lồng Tiếng hiện thành 2 tab riêng (Subbed/Dubbed) để chọn. Khi bật thêm bên dưới: nếu phim có CẢ Thuyết Minh lẫn Lồng Tiếng, 2 loại này tách thành 2 mùa trong tab Dubbed."))
-        val swSplitAudioSeasons = switchRow(
-            "Tách Thuyết Minh/Lồng Tiếng thành mùa riêng (khi có cả 2)",
-            OPExProvider.PREF_SPLIT_AUDIO_SEASONS,
-            true
-        )
-
         // ── Section: Categories ──────────────────────────────────────────────
         layout.addView(sectionHeader("📋 Danh mục trang chủ"))
 
@@ -184,7 +175,6 @@ class SettingsFragment(
                     putBoolean(OPExProvider.PREF_USE_TMDB_PLOT,        swPlot.isChecked)
                     putBoolean(OPExProvider.PREF_USE_RECOMMENDATIONS,  swRecs.isChecked)
                     putBoolean(OPExProvider.PREF_FILTER_TRAILER,       swFilterTrailer.isChecked)
-                    putBoolean(OPExProvider.PREF_SPLIT_AUDIO_SEASONS,  swSplitAudioSeasons.isChecked)
                     putInt(OPExProvider.PREF_CAST_COUNT, castVal)
                     // Parse "Tên|path" per line
                     val lines = categoryEdit.text.toString().lines()
@@ -214,7 +204,6 @@ class SettingsFragment(
                 swPlot.isChecked        = true
                 swRecs.isChecked        = true
                 swFilterTrailer.isChecked = true
-                swSplitAudioSeasons.isChecked = true
                 castCountEdit.setText("15")
                 categoryEdit.setText(
                     (0 until 6).joinToString("\n") { i -> "${defaultNames[i]}|${defaultPaths[i]}" }
