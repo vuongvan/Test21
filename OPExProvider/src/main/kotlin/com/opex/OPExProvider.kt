@@ -62,6 +62,21 @@ class OPExProvider : MainAPI() {
         internal val EP_NUMBER_REGEX = Regex("""(\d+)""")
         internal val HTML_TAG_REGEX = Regex("<.*?>")
 
+        // OPhim trả episode_total không đồng nhất format: có lúc "1", có lúc "1 Tập".
+        // Trích số ra thay vì so sánh chuỗi cứng để tránh nhận nhầm phim lẻ thành phim bộ.
+        internal fun totalEpisodeCount(episodeTotal: String?): Int? =
+            episodeTotal?.let { EP_NUMBER_REGEX.find(it)?.value?.toIntOrNull() }
+
+        // Gộp nhiều tín hiệu để xác định phim lẻ (single) — không chỉ dựa vào 1 field,
+        // vì OPhim trả dữ liệu không đồng nhất giữa các API/khoảng thời gian khác nhau:
+        // - type == "single" (rõ ràng nhất khi có)
+        // - episode_current == "Full" (phim lẻ luôn "Full", phim bộ luôn "Tập N")
+        // - episode_total parse ra đúng 1
+        internal fun isSingleMovie(type: String?, episodeCurrent: String?, episodeTotal: String?): Boolean =
+            type == "single" ||
+                episodeCurrent?.trim()?.equals("full", ignoreCase = true) == true ||
+                totalEpisodeCount(episodeTotal) == 1
+
         fun getPreferenceKey(i: Int): String = when (i) {
             1 -> PREF_CATEGORY_1; 2 -> PREF_CATEGORY_2; 3 -> PREF_CATEGORY_3
             4 -> PREF_CATEGORY_4; 5 -> PREF_CATEGORY_5; 6 -> PREF_CATEGORY_6; else -> PREF_CATEGORY_1
@@ -116,10 +131,11 @@ class OPExProvider : MainAPI() {
                 ?.filter { !filterTrailer || it.episode_current?.contains("trailer", ignoreCase = true) != true }
                 ?.map { item ->
                     val scoreVal = item.tmdb?.vote_average ?: item.imdb?.vote_average ?: 0.0
+                    val isSingle = isSingleMovie(item.type, item.episode_current, item.episode_total)
                     val tvType = when {
-                        item.type == "hoathinh" && item.episode_total?.trim() == "1" -> TvType.Movie
+                        item.type == "hoathinh" && isSingle -> TvType.Movie
                         item.type == "hoathinh" -> TvType.Anime
-                        item.episode_total?.trim() == "1" -> TvType.Movie
+                        isSingle -> TvType.Movie
                         else -> TvType.TvSeries
                     }
                     newAnimeSearchResponse(item.name ?: "", "$mainUrl/v1/api/phim/${item.slug}", tvType) {
@@ -159,7 +175,7 @@ class OPExProvider : MainAPI() {
         val useTmdbPlot       = prefs.getBoolean(PREF_USE_TMDB_PLOT, true)
         val castCount         = prefs.getInt(PREF_CAST_COUNT, 15)
 
-        val isSeries = movie.episode_total?.trim() != "1"
+        val isSeries = !isSingleMovie(movie.type, movie.episode_current, movie.episode_total)
         val tmdbType = movie.tmdb?.type ?: if (isSeries) "tv" else "movie"
         val seasonNumber = movie.tmdb?.season ?: 1
 
@@ -362,23 +378,4 @@ class OPExProvider : MainAPI() {
     }
 
     override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        data.split(",").forEach { info ->
-            val parts = info.split("|")
-            val link = parts.getOrNull(0) ?: return@forEach
-            val serverName = parts.getOrNull(1) ?: "OPhim"
-            if (link.isNotEmpty()) callback(newExtractorLink(serverName, serverName, link, ExtractorLinkType.M3U8))
-        }
-        return true
-    }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        // Encode để tránh gãy URL với query có dấu cách / ký tự đặc biệt / tiếng Việt có dấu
-        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        return getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$encoded&limit=30")
-    }
-}
+       
