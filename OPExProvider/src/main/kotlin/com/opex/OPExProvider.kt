@@ -378,4 +378,23 @@ class OPExProvider : MainAPI() {
     }
 
     override suspend fun loadLinks(
-       
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        data.split(",").forEach { info ->
+            val parts = info.split("|")
+            val link = parts.getOrNull(0) ?: return@forEach
+            val serverName = parts.getOrNull(1) ?: "OPhim"
+            if (link.isNotEmpty()) callback(newExtractorLink(serverName, serverName, link, ExtractorLinkType.M3U8))
+        }
+        return true
+    }
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        // Encode để tránh gãy URL với query có dấu cách / ký tự đặc biệt / tiếng Việt có dấu
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        return getListFromUrl("$mainUrl/v1/api/tim-kiem?keyword=$encoded&limit=30")
+    }
+}
